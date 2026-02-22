@@ -511,10 +511,108 @@ class HistoricalPopulateJob:
     def _extract_tennis_stats(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
         """Extract tennis-specific fields from match data."""
         result: Dict[str, Any] = {}
-        result['ground_type'] = match_data.get('ground_type') or None
+
+        # Ground type from competition
+        competition = match_data.get('competition') or {}
+        result['ground_type'] = competition.get('ground_type') or match_data.get('ground_type') or None
+
         result['team1_seed'] = match_data.get('team1_seed') or None
         result['team2_seed'] = match_data.get('team2_seed') or None
-        result['tournament_round'] = match_data.get('tournament_round') or None
+
+        # Tournament round - extract first arg string
+        tr = match_data.get('tournament_round') or {}
+        if isinstance(tr, dict) and tr.get('args'):
+            result['tournament_round'] = tr['args'][0]
+        elif isinstance(tr, str):
+            result['tournament_round'] = tr or None
+        else:
+            result['tournament_round'] = None
+
+        # Prize money from season
+        season = match_data.get('season') or {}
+        prize_money = season.get('prize_money') or {}
+        prize_currency = season.get('prize_currency') or {}
+        result['prize_money'] = prize_money.get('value') if isinstance(prize_money, dict) else None
+        result['prize_currency'] = prize_currency.get('value') if isinstance(prize_currency, dict) else None
+
+        # Set durations from period_scores
+        period_scores = match_data.get('period_scores') or []
+        total_duration = 0
+        for ps in period_scores:
+            if not isinstance(ps, dict):
+                continue
+            set_num = ps.get('type', 0)
+            duration = ps.get('duration_minutes') or {}
+            duration_val = duration.get('value') if isinstance(duration, dict) else None
+            if duration_val and 1 <= set_num <= 5:
+                result[f'set{set_num}_duration'] = duration_val
+                total_duration += duration_val
+        result['total_duration'] = total_duration if total_duration > 0 else None
+
+        # Total games from scores type=12
+        scores = match_data.get('scores') or []
+        for score in scores:
+            if isinstance(score, dict) and score.get('type') == 12:
+                result['total_games'] = (score.get('team1') or 0) + (score.get('team2') or 0)
+                break
+
+        # Statistics - period=0 means match totals
+        statistics = match_data.get('statistics') or []
+        for stat_period in statistics:
+            if not isinstance(stat_period, dict):
+                continue
+            if stat_period.get('period') != 0:
+                continue
+            for stat in stat_period.get('data', []):
+                if not isinstance(stat, dict):
+                    continue
+                stat_type = stat.get('type')
+                team1_val = str(stat.get('team1', ''))
+                team2_val = str(stat.get('team2', ''))
+
+                if stat_type == 11:  # Aces
+                    result['aces_home'] = self._parse_stat_int(team1_val)
+                    result['aces_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 12:  # Double faults
+                    result['double_faults_home'] = self._parse_stat_int(team1_val)
+                    result['double_faults_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 33:  # First serve %
+                    m1, a1 = self._parse_stat_fraction(team1_val)
+                    m2, a2 = self._parse_stat_fraction(team2_val)
+                    result['first_serve_pct_home'] = m1 / a1 if a1 is not None and a1 != 0 else None
+                    result['first_serve_pct_away'] = m2 / a2 if a2 is not None and a2 != 0 else None
+                elif stat_type == 29:  # First serve points won
+                    m1, a1 = self._parse_stat_fraction(team1_val)
+                    m2, a2 = self._parse_stat_fraction(team2_val)
+                    result['first_serve_won_pct_home'] = m1 / a1 if a1 is not None and a1 != 0 else None
+                    result['first_serve_won_pct_away'] = m2 / a2 if a2 is not None and a2 != 0 else None
+                elif stat_type == 31:  # Second serve points won
+                    m1, a1 = self._parse_stat_fraction(team1_val)
+                    m2, a2 = self._parse_stat_fraction(team2_val)
+                    result['second_serve_won_pct_home'] = m1 / a1 if a1 is not None and a1 != 0 else None
+                    result['second_serve_won_pct_away'] = m2 / a2 if a2 is not None and a2 != 0 else None
+                elif stat_type == 32:  # Break points won
+                    m1, a1 = self._parse_stat_fraction(team1_val)
+                    m2, a2 = self._parse_stat_fraction(team2_val)
+                    result['break_points_converted_home'] = m1
+                    result['break_points_faced_away'] = a1  # BP converted by home = BP faced by away
+                    result['break_points_converted_away'] = m2
+                    result['break_points_faced_home'] = a2
+                    if a1:
+                        result['break_points_saved_away'] = a1 - (m1 or 0)
+                    if a2:
+                        result['break_points_saved_home'] = a2 - (m2 or 0)
+                elif stat_type == 19:  # Service games won
+                    m1, a1 = self._parse_stat_fraction(team1_val)
+                    m2, a2 = self._parse_stat_fraction(team2_val)
+                    result['service_games_won_home'] = m1
+                    result['service_games_total_home'] = a1
+                    result['service_games_won_away'] = m2
+                    result['service_games_total_away'] = a2
+
+        # Point by point raw
+        result['point_by_point_raw'] = match_data.get('point_by_point') or None
+
         return result
 
     @staticmethod

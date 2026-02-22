@@ -140,6 +140,48 @@ class ScorealarmMatch(Base):
     team1_seed = Column(Integer, nullable=True)
     team2_seed = Column(Integer, nullable=True)
     tournament_round = Column(String(100), nullable=True)
+    prize_money = Column(Integer, nullable=True)
+    prize_currency = Column(String(10), nullable=True)
+
+    # Tennis - Set durations
+    set1_duration = Column(Integer, nullable=True)        # minutes
+    set2_duration = Column(Integer, nullable=True)
+    set3_duration = Column(Integer, nullable=True)
+    set4_duration = Column(Integer, nullable=True)
+    set5_duration = Column(Integer, nullable=True)
+    total_duration = Column(Integer, nullable=True)       # sum of all sets
+
+    # Tennis - Serve statistics
+    aces_home = Column(Integer, nullable=True)
+    aces_away = Column(Integer, nullable=True)
+    double_faults_home = Column(Integer, nullable=True)
+    double_faults_away = Column(Integer, nullable=True)
+    first_serve_pct_home = Column(Float, nullable=True)   # 0.65 means 65%
+    first_serve_pct_away = Column(Float, nullable=True)
+    first_serve_won_pct_home = Column(Float, nullable=True)
+    first_serve_won_pct_away = Column(Float, nullable=True)
+    second_serve_won_pct_home = Column(Float, nullable=True)
+    second_serve_won_pct_away = Column(Float, nullable=True)
+
+    # Tennis - Break points
+    break_points_faced_home = Column(Integer, nullable=True)
+    break_points_saved_home = Column(Integer, nullable=True)
+    break_points_faced_away = Column(Integer, nullable=True)
+    break_points_saved_away = Column(Integer, nullable=True)
+    break_points_converted_home = Column(Integer, nullable=True)
+    break_points_converted_away = Column(Integer, nullable=True)
+
+    # Tennis - Service games
+    service_games_won_home = Column(Integer, nullable=True)
+    service_games_total_home = Column(Integer, nullable=True)
+    service_games_won_away = Column(Integer, nullable=True)
+    service_games_total_away = Column(Integer, nullable=True)
+
+    # Tennis - Total games (for over/under)
+    total_games = Column(Integer, nullable=True)
+
+    # Tennis - Point by point raw data
+    point_by_point_raw = Column(JSONBCompat, nullable=True)
 
     # Basketball shooting stats
     ft_made_home = Column(Integer, nullable=True)
