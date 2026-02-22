@@ -23,6 +23,7 @@ BASKETBALL_SPORT_ID = 4
 TENNIS_SPORT_ID = 2
 VOLLEYBALL_SPORT_ID = 1
 HOCKEY_SPORT_ID = 3
+HANDBALL_SPORT_ID = 11
 
 # Superbet sport ids to keep in historical population (user-curated allowlist)
 ALLOWED_POPULATE_SUPERBET_SPORT_IDS = {
@@ -409,6 +410,12 @@ class HistoricalPopulateJob:
             elif sport_id == HOCKEY_SPORT_ID:
                 hockey = self._extract_hockey_stats(match_data)
                 for key, value in hockey.items():
+                    if value is not None:
+                        setattr(db_match, key, value)
+            # Handball
+            elif sport_id == HANDBALL_SPORT_ID:
+                handball = self._extract_handball_stats(match_data)
+                for key, value in handball.items():
                     if value is not None:
                         setattr(db_match, key, value)
 
@@ -811,6 +818,162 @@ class HistoricalPopulateJob:
                 goal['assist_id'] = assist_id.get('value') if isinstance(assist_id, dict) else None
             goal_scorers.append(goal)
 
+        if goal_scorers:
+            result['goal_scorers_raw'] = goal_scorers
+
+        return result
+
+    def _extract_handball_stats(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract handball-specific statistics from match data."""
+        result: Dict[str, Any] = {}
+
+        # Score by half
+        scores = match_data.get('scores', [])
+        for score in scores:
+            if not isinstance(score, dict):
+                continue
+            score_type = score.get('type')
+            team1 = score.get('team1', 0)
+            team2 = score.get('team2', 0)
+
+            if score_type == 1:
+                result['first_half_home'] = team1
+                result['first_half_away'] = team2
+            elif score_type == 2:
+                result['second_half_home'] = team1
+                result['second_half_away'] = team2
+            elif score_type == 3:
+                result['overtime1_home'] = team1
+                result['overtime1_away'] = team2
+            elif score_type == 4:
+                result['overtime2_home'] = team1
+                result['overtime2_away'] = team2
+
+        # Statistics - period=0 means match totals
+        statistics = match_data.get('statistics', [])
+        for period_stats in statistics:
+            if not isinstance(period_stats, dict):
+                continue
+            if period_stats.get('period') != 0:
+                continue
+
+            for stat in period_stats.get('data', []):
+                if not isinstance(stat, dict):
+                    continue
+                stat_type = stat.get('type')
+                team1_val = str(stat.get('team1', ''))
+                team2_val = str(stat.get('team2', ''))
+
+                if stat_type == 1:   # Shots on goal
+                    result['shots_on_goal_home'] = self._parse_stat_int(team1_val)
+                    result['shots_on_goal_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 2:  # Shots off goal
+                    result['shots_off_goal_home'] = self._parse_stat_int(team1_val)
+                    result['shots_off_goal_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 7:  # Goalkeeper saves
+                    result['goalkeeper_saves_home'] = self._parse_stat_int(team1_val)
+                    result['goalkeeper_saves_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 21:  # Red cards
+                    result['red_cards_home'] = self._parse_stat_int(team1_val)
+                    result['red_cards_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 22:  # Yellow cards
+                    result['yellow_cards_home'] = self._parse_stat_int(team1_val)
+                    result['yellow_cards_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 25:  # Penalties against (7m suffered)
+                    result['penalties_against_home'] = self._parse_stat_int(team1_val)
+                    result['penalties_against_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 26:  # Shots blocked
+                    result['shots_blocked_home'] = self._parse_stat_int(team1_val)
+                    result['shots_blocked_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 40:  # Breakthrough goals
+                    result['breakthrough_goals_home'] = self._parse_stat_int(team1_val)
+                    result['breakthrough_goals_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 41:  # Fast break goals
+                    result['fast_break_goals_home'] = self._parse_stat_int(team1_val)
+                    result['fast_break_goals_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 42:  # Pivot goals
+                    result['pivot_goals_home'] = self._parse_stat_int(team1_val)
+                    result['pivot_goals_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 43:  # Steals
+                    result['steals_home'] = self._parse_stat_int(team1_val)
+                    result['steals_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 44:  # Suspension minutes
+                    result['suspension_minutes_home'] = self._parse_stat_int(team1_val)
+                    result['suspension_minutes_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 45:  # Timeouts
+                    result['timeouts_home'] = self._parse_stat_int(team1_val)
+                    result['timeouts_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 52:  # Suspensions count
+                    result['suspensions_home'] = self._parse_stat_int(team1_val)
+                    result['suspensions_away'] = self._parse_stat_int(team2_val)
+
+        # Derived metrics
+        shots_home = result.get('shots_on_goal_home') or 0
+        shots_away = result.get('shots_on_goal_away') or 0
+        saves_home = result.get('goalkeeper_saves_home') or 0
+        saves_away = result.get('goalkeeper_saves_away') or 0
+        final_score = next((s for s in scores if isinstance(s, dict) and s.get('type') == 0), None)
+        goals_home = final_score.get('team1', 0) if final_score else 0
+        goals_away = final_score.get('team2', 0) if final_score else 0
+
+        if saves_home + goals_away > 0:
+            result['save_percentage_home'] = saves_home / (saves_home + goals_away)
+        if saves_away + goals_home > 0:
+            result['save_percentage_away'] = saves_away / (saves_away + goals_home)
+        if shots_home > 0:
+            result['shooting_percentage_home'] = goals_home / shots_home
+        if shots_away > 0:
+            result['shooting_percentage_away'] = goals_away / shots_away
+
+        # Goals per half
+        goals_per_half_home = [result.get('first_half_home'), result.get('second_half_home')]
+        goals_per_half_away = [result.get('first_half_away'), result.get('second_half_away')]
+        if any(v is not None for v in goals_per_half_home):
+            result['goals_per_half_home'] = goals_per_half_home
+        if any(v is not None for v in goals_per_half_away):
+            result['goals_per_half_away'] = goals_per_half_away
+
+        # Goal events with players; count 7m penalty goals
+        goal_scorers = []
+        penalty_goals_home = 0
+        penalty_goals_away = 0
+
+        for event in match_data.get('live_events', []):
+            if not isinstance(event, dict):
+                continue
+            if event.get('type') != 1:  # 1 = Goal
+                continue
+            subtype = event.get('subtype')
+            position = event.get('position')
+
+            if subtype == 11:  # 7m penalty goal
+                if position == 1:
+                    penalty_goals_home += 1
+                else:
+                    penalty_goals_away += 1
+
+            goal: Dict[str, Any] = {
+                'minute': event.get('minute', {}).get('value') if isinstance(event.get('minute'), dict) else None,
+                'team': position,
+                'is_penalty': subtype == 11,
+                'score': event.get('main', {}).get('text', {}).get('val') if isinstance(event.get('main'), dict) else None,
+            }
+            primary = event.get('primary') or {}
+            if primary:
+                goal['scorer'] = primary.get('text', {}).get('val') if isinstance(primary.get('text'), dict) else None
+                player_id = primary.get('player_id') or {}
+                goal['scorer_id'] = player_id.get('value') if isinstance(player_id, dict) else None
+            secondary = event.get('secondary') or {}
+            if secondary and secondary.get('text') and not secondary.get('text', {}).get('args'):
+                goal['assist'] = secondary.get('text', {}).get('val') if isinstance(secondary.get('text'), dict) else None
+                assist_id = secondary.get('player_id') or {}
+                goal['assist_id'] = assist_id.get('value') if isinstance(assist_id, dict) else None
+            goal_scorers.append(goal)
+
+        if penalty_goals_home > 0:
+            result['penalty_goals_home'] = penalty_goals_home
+        if penalty_goals_away > 0:
+            result['penalty_goals_away'] = penalty_goals_away
         if goal_scorers:
             result['goal_scorers_raw'] = goal_scorers
 

@@ -285,6 +285,56 @@ class ScorealarmMatch(Base):
     # Hockey - Goal events (raw)
     goal_scorers_raw = Column(JSONBCompat, nullable=True)  # List of goals with players and assists
 
+    # Handball - Score by half
+    first_half_home = Column(Integer, nullable=True)
+    first_half_away = Column(Integer, nullable=True)
+    second_half_home = Column(Integer, nullable=True)
+    second_half_away = Column(Integer, nullable=True)
+    overtime1_home = Column(Integer, nullable=True)
+    overtime1_away = Column(Integer, nullable=True)
+    overtime2_home = Column(Integer, nullable=True)
+    overtime2_away = Column(Integer, nullable=True)
+
+    # Handball - Shots
+    shots_off_goal_home = Column(Integer, nullable=True)
+    shots_off_goal_away = Column(Integer, nullable=True)
+    shots_blocked_home = Column(Integer, nullable=True)
+    shots_blocked_away = Column(Integer, nullable=True)
+
+    # Handball - Goalkeeper
+    goalkeeper_saves_home = Column(Integer, nullable=True)
+    goalkeeper_saves_away = Column(Integer, nullable=True)
+
+    # Handball - Goal types
+    breakthrough_goals_home = Column(Integer, nullable=True)
+    breakthrough_goals_away = Column(Integer, nullable=True)
+    fast_break_goals_home = Column(Integer, nullable=True)
+    fast_break_goals_away = Column(Integer, nullable=True)
+    pivot_goals_home = Column(Integer, nullable=True)
+    pivot_goals_away = Column(Integer, nullable=True)
+    penalty_goals_home = Column(Integer, nullable=True)
+    penalty_goals_away = Column(Integer, nullable=True)
+
+    # Handball - Discipline
+    yellow_cards_home = Column(Integer, nullable=True)
+    yellow_cards_away = Column(Integer, nullable=True)
+    red_cards_home = Column(Integer, nullable=True)
+    red_cards_away = Column(Integer, nullable=True)
+    suspensions_home = Column(Integer, nullable=True)
+    suspensions_away = Column(Integer, nullable=True)
+    suspension_minutes_home = Column(Integer, nullable=True)
+    suspension_minutes_away = Column(Integer, nullable=True)
+
+    # Handball - Other stats
+    penalties_against_home = Column(Integer, nullable=True)
+    penalties_against_away = Column(Integer, nullable=True)
+    timeouts_home = Column(Integer, nullable=True)
+    timeouts_away = Column(Integer, nullable=True)
+
+    # Handball - Calculated metrics
+    goals_per_half_home = Column(JSONBCompat, nullable=True)
+    goals_per_half_away = Column(JSONBCompat, nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
