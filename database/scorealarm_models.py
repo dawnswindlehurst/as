@@ -335,6 +335,43 @@ class ScorealarmMatch(Base):
     goals_per_half_home = Column(JSONBCompat, nullable=True)
     goals_per_half_away = Column(JSONBCompat, nullable=True)
 
+    # Baseball - Score by inning (9 regular innings)
+    inning1_home = Column(Integer, nullable=True)
+    inning1_away = Column(Integer, nullable=True)
+    inning2_home = Column(Integer, nullable=True)
+    inning2_away = Column(Integer, nullable=True)
+    inning3_home = Column(Integer, nullable=True)
+    inning3_away = Column(Integer, nullable=True)
+    inning4_home = Column(Integer, nullable=True)
+    inning4_away = Column(Integer, nullable=True)
+    inning5_home = Column(Integer, nullable=True)
+    inning5_away = Column(Integer, nullable=True)
+    inning6_home = Column(Integer, nullable=True)
+    inning6_away = Column(Integer, nullable=True)
+    inning7_home = Column(Integer, nullable=True)
+    inning7_away = Column(Integer, nullable=True)
+    inning8_home = Column(Integer, nullable=True)
+    inning8_away = Column(Integer, nullable=True)
+    inning9_home = Column(Integer, nullable=True)
+    inning9_away = Column(Integer, nullable=True)
+
+    # Baseball - Extra innings (if any)
+    extra_innings_home = Column(JSONBCompat, nullable=True)   # [0, 1, 2] runs per extra inning
+    extra_innings_away = Column(JSONBCompat, nullable=True)
+
+    # Baseball - Calculated totals
+    total_runs_home = Column(Integer, nullable=True)          # Sum of all runs
+    total_runs_away = Column(Integer, nullable=True)
+    total_innings_played = Column(Integer, nullable=True)     # 9 or more if extra innings
+
+    # Baseball - Derived metrics
+    runs_per_inning_home = Column(Float, nullable=True)       # Average runs per inning
+    runs_per_inning_away = Column(Float, nullable=True)
+    first_5_innings_home = Column(Integer, nullable=True)     # Runs in first 5 innings (F5 betting)
+    first_5_innings_away = Column(Integer, nullable=True)
+    last_4_innings_home = Column(Integer, nullable=True)      # Runs in last 4 innings
+    last_4_innings_away = Column(Integer, nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
