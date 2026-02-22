@@ -292,6 +292,35 @@ class ScorealarmClient:
             logger.error(f"Error fetching event detail for match {match_id}: {e}")
             return None
     
+    async def get_match_detail_raw(self, platform_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get raw event detail response for a match without any parsing.
+
+        Returns the complete API payload so callers can extract any fields they
+        need (statistics, score_trend, live_events, venue, coverage, etc.).
+
+        Args:
+            platform_id: Platform match ID (e.g. "br:match:12345" or just "12345")
+
+        Returns:
+            Raw dict from the API or None on failure.
+
+        Example:
+            GET /event/detail/brsuperbetsport/pt-BR?id=br:match:{id}
+        """
+        try:
+            if not platform_id.startswith('br:match:'):
+                platform_id = f'br:match:{platform_id}'
+            params = {'id': platform_id}
+            data = await self._get(
+                f"event/detail/{self.PLATFORM}/{self.LOCALE}",
+                params=params,
+            )
+            return data if data else None
+        except Exception as e:
+            logger.error(f"Error fetching raw match detail for {platform_id}: {e}")
+            return None
+
     def _parse_match(self, match_data: Dict[str, Any]) -> Optional[ScorealarmMatch]:
         """
         Parse match data from API response.

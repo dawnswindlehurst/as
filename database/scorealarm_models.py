@@ -121,8 +121,60 @@ class ScorealarmMatch(Base):
     goal_events = Column(JSON, nullable=True)  # List of goal events with player details
     
     # V2 API Raw Data - Complete API response for future analysis
-    match_stats_raw = Column(JSONBCompat, nullable=True)  # All match statistics from API
+    match_stats_raw = Column(JSONBCompat, nullable=True)  # All match statistics from V2 soccer/fixtures API
     live_events_raw = Column(JSONBCompat, nullable=True)  # All live events from API
+
+    # Detailed raw data for value bet analysis (from event/detail endpoint)
+    match_statistics_raw = Column(JSONBCompat, nullable=True)  # statistics array (by period) from event/detail
+    score_trend_raw = Column(JSONBCompat, nullable=True)        # score evolution minute by minute
+
+    # Game metadata
+    venue_id = Column(Integer, nullable=True)             # Stadium ID
+    coverage_level = Column(JSONBCompat, nullable=True)   # ["livescout", ...]
+    number_of_periods = Column(Integer, nullable=True)    # 4, 5 (OT), etc
+    period_duration = Column(Integer, nullable=True)      # 10 or 12 minutes
+    leading_team = Column(Integer, nullable=True)         # 1 or 2
+
+    # Tennis-specific fields
+    ground_type = Column(Integer, nullable=True)          # 1=clay, 2=grass, 3=hard, 4=indoor
+    team1_seed = Column(Integer, nullable=True)
+    team2_seed = Column(Integer, nullable=True)
+    tournament_round = Column(String(100), nullable=True)
+
+    # Basketball shooting stats
+    ft_made_home = Column(Integer, nullable=True)
+    ft_attempted_home = Column(Integer, nullable=True)
+    ft_made_away = Column(Integer, nullable=True)
+    ft_attempted_away = Column(Integer, nullable=True)
+    fg2_made_home = Column(Integer, nullable=True)
+    fg2_attempted_home = Column(Integer, nullable=True)
+    fg2_made_away = Column(Integer, nullable=True)
+    fg2_attempted_away = Column(Integer, nullable=True)
+    fg3_made_home = Column(Integer, nullable=True)
+    fg3_attempted_home = Column(Integer, nullable=True)
+    fg3_made_away = Column(Integer, nullable=True)
+    fg3_attempted_away = Column(Integer, nullable=True)
+
+    # Basketball box score
+    rebounds_home = Column(Integer, nullable=True)
+    rebounds_away = Column(Integer, nullable=True)
+    assists_home = Column(Integer, nullable=True)
+    assists_away = Column(Integer, nullable=True)
+    turnovers_home = Column(Integer, nullable=True)
+    turnovers_away = Column(Integer, nullable=True)
+    steals_home = Column(Integer, nullable=True)
+    steals_away = Column(Integer, nullable=True)
+    blocks_home = Column(Integer, nullable=True)
+    blocks_away = Column(Integer, nullable=True)
+    fouls_home = Column(Integer, nullable=True)
+    fouls_away = Column(Integer, nullable=True)
+
+    # Basketball game flow
+    biggest_lead_home = Column(Integer, nullable=True)
+    biggest_lead_away = Column(Integer, nullable=True)
+    time_in_lead_home = Column(String(10), nullable=True)  # "38:53"
+    time_in_lead_away = Column(String(10), nullable=True)  # "00:00"
+    lead_changes = Column(Integer, nullable=True)          # calculated from score_trend
 
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
