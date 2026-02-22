@@ -3,7 +3,7 @@ import asyncio
 import argparse
 from datetime import datetime, timezone
 from collections import Counter
-from typing import List, Optional, Dict, Any, Set, Tuple
+from typing import List, Optional, Any, Tuple
 from database.db import get_db_session
 from database.scorealarm_models import ScorealarmMatch
 from scrapers.superbet.scorealarm_client import ScorealarmClient
@@ -11,11 +11,10 @@ from utils.gentle_rate_limiter import GentleRateLimiter
 from utils.logger import log
 
 
-# Focus V2 enrichment only where we have confirmed/expected useful extra payloads.
-DEFAULT_ENRICH_SPORT_IDS = {55, 57}  # Futebol, Tênis
+# V2 enrichment is exclusive to football (55).
+DEFAULT_ENRICH_SPORT_IDS = {55}  # Futebol
 FOOTBALL_SPORT_ID = 55
-TENNIS_SPORT_ID = 57
-ALLOWED_V2_SPORT_IDS = {FOOTBALL_SPORT_ID, TENNIS_SPORT_ID}
+ALLOWED_V2_SPORT_IDS = {FOOTBALL_SPORT_ID}
 
 
 class EnrichHistoricalJob:
@@ -26,8 +25,6 @@ class EnrichHistoricalJob:
         limit: Optional[int] = None,
         force: bool = False,
         delay: int = 100,
-        sport_ids: Optional[Set[int]] = None,
-        all_sports: bool = False,
         inspect_fields: bool = False,
     ):
         """
@@ -37,8 +34,6 @@ class EnrichHistoricalJob:
             limit: Maximum number of matches to enrich (None = all pending)
             force: Force re-enrichment of already enriched matches
             delay: Delay between requests in milliseconds
-            sport_ids: Optional set of sport IDs to enrich
-            all_sports: Enrich all sports (disables sport_ids filter)
             inspect_fields: Log aggregate field/type discovery from V2 payloads
         """
         self.scorealarm_client = ScorealarmClient()
@@ -52,17 +47,10 @@ class EnrichHistoricalJob:
         self.db = get_db_session()
         self.limit = limit
         self.force = force
-        self.all_sports = all_sports
-        if self.all_sports:
-            log.warning("⚠️ --all-sports ignorado: V2 suportado apenas para futebol (55) e tênis (57)")
+        self.sport_ids = ALLOWED_V2_SPORT_IDS
         self.inspect_fields = inspect_fields
-        requested_sport_ids = set(sport_ids or DEFAULT_ENRICH_SPORT_IDS)
-        self.sport_ids = requested_sport_ids.intersection(ALLOWED_V2_SPORT_IDS)
-        ignored_sports = sorted(requested_sport_ids - ALLOWED_V2_SPORT_IDS)
-        if ignored_sports:
-            log.warning(f"⚠️ Ignorando sport_ids sem suporte V2: {ignored_sports}")
 
-        # Field discovery tracking (useful when mapping sports like tennis)
+        # Field discovery tracking (useful for exploring V2 football payload fields)
         self.match_stat_types: Counter[Tuple[int, str]] = Counter()
         self.live_event_types: Counter[Tuple[int, Optional[int]]] = Counter()
         self.matches_with_stats = 0
@@ -214,13 +202,7 @@ class EnrichHistoricalJob:
             return
         
         # Get fixture stats from V2 API
-        sport_hint = None
-        if match.sport_id == 55:
-            sport_hint = "soccer"
-        elif match.sport_id == 57:
-            sport_hint = "tennis"
-
-        fixture_stats = await scorealarm.get_fixture_stats(fixture_id, sport_hint=sport_hint)
+        fixture_stats = await scorealarm.get_fixture_stats(fixture_id, sport_hint="soccer")
         
         if not fixture_stats:
             self.stats["no_data"] += 1
@@ -265,12 +247,8 @@ class EnrichHistoricalJob:
                 for e in live_events
             ]
 
-        if match.sport_id == TENNIS_SPORT_ID:
-            self._extract_tennis_stats(match, fixture_stats)
-
         try:
-            if match.sport_id == FOOTBALL_SPORT_ID:
-                self._extract_football_stats(match, match_stats, live_events)
+            self._extract_football_stats(match, match_stats, live_events)
         except Exception as parse_error:
             self.stats["parse_errors"] += 1
             log.warning(f"  ⚠️ Partida {match.id}: erro ao parsear campos enriquecidos: {parse_error}")
@@ -333,39 +311,6 @@ class EnrichHistoricalJob:
 
             match.goal_events = goals_data
 
-    def _extract_tennis_stats(self, match: ScorealarmMatch, fixture_stats: Any):
-        """Extract tennis-focused metrics from V2 payload into DB JSON columns."""
-        type_to_key = {
-            11: "aces",
-            12: "double_faults",
-            15: "max_points_in_row",
-            16: "max_games_in_row",
-            17: "service_points_won",
-            19: "service_games_won",
-            29: "first_serve_points_won",
-            31: "second_serve_points_won",
-            32: "break_points_won",
-            33: "first_serve_percentage",
-            46: "second_serve_percentage",
-        }
-
-        def serialize_stat(stat: Any) -> Dict[str, Any]:
-            return {
-                "type": stat.type,
-                "key": type_to_key.get(stat.type),
-                "stat_name": stat.stat_name,
-                "team1": stat.team1,
-                "team2": stat.team2,
-            }
-
-        totals = [serialize_stat(stat) for stat in (fixture_stats.match_stats or []) if stat.type in type_to_key]
-        periods = {}
-        for period, stats in (fixture_stats.statistics_by_period or {}).items():
-            periods[str(period)] = [serialize_stat(stat) for stat in stats if stat.type in type_to_key]
-
-        match.tennis_match_metrics = totals or None
-        match.tennis_period_metrics = periods or None
-
     def _capture_field_discovery(self, match_stats: List[Any], live_events: List[Any]):
         """Capture aggregate type/subtype information from payloads."""
         if match_stats:
@@ -425,17 +370,6 @@ async def main():
         help="Delay between requests in milliseconds (default: 100)"
     )
     parser.add_argument(
-        "--sport-ids",
-        type=str,
-        default="55,57",
-        help="Comma-separated sport IDs to enrich (default: 55,57 -> Futebol,Tênis)",
-    )
-    parser.add_argument(
-        "--all-sports",
-        action="store_true",
-        help="[LEGADO] ignorado: V2 só para 55 (futebol) e 57 (tênis)",
-    )
-    parser.add_argument(
         "--inspect-fields",
         action="store_true",
         help="Log aggregate match_stats/live_events types to inspect API payload fields",
@@ -444,19 +378,11 @@ async def main():
     args, unknown_args = parser.parse_known_args()
     if unknown_args:
         log.warning(f"⚠️ Ignorando argumentos não reconhecidos: {' '.join(unknown_args)}")
-    
-    sport_ids = {
-        int(part.strip())
-        for part in args.sport_ids.split(",")
-        if part.strip()
-    }
 
     job = EnrichHistoricalJob(
         limit=args.limit,
         force=args.force,
         delay=args.delay,
-        sport_ids=sport_ids,
-        all_sports=args.all_sports,
         inspect_fields=args.inspect_fields,
     )
     

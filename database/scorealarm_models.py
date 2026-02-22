@@ -124,10 +124,6 @@ class ScorealarmMatch(Base):
     match_stats_raw = Column(JSONBCompat, nullable=True)  # All match statistics from API
     live_events_raw = Column(JSONBCompat, nullable=True)  # All live events from API
 
-    # Tennis-focused enrichment (sport_id=57)
-    tennis_match_metrics = Column(JSONBCompat, nullable=True)  # Aggregated tennis metrics (aces, break points, serve stats)
-    tennis_period_metrics = Column(JSONBCompat, nullable=True)  # Tennis metrics by period/set
-    
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
