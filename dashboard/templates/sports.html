@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Esportes{% endblock %}
+{% block content %}
+<h1>🏆 Stats por Esporte</h1>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Esporte</th>
+            <th>Gold?</th>
+            <th>Apostas</th>
+            <th>W/L</th>
+            <th>Win Rate</th>
+            <th>Profit</th>
+            <th>ROI</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for sport in sports %}
+        <tr>
+            <td>{{ sport.name }}</td>
+            <td>{% if sport.is_gold %}⭐{% endif %}</td>
+            <td>{{ sport.total_bets }}</td>
+            <td>{{ sport.wins }}/{{ sport.losses }}</td>
+            <td>{{ "%.1f"|format(sport.win_rate) }}%</td>
+            <td class="{% if sport.profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                R$ {{ "%.2f"|format(sport.profit) }}
+            </td>
+            <td>
+                <span class="badge bg-{% if sport.roi >= 0 %}success{% else %}danger{% endif %}">
+                    {{ "%.1f"|format(sport.roi) }}%
+                </span>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<p class="text-muted">⭐ = Esporte "Gold" (menos analisado = mais edge potencial)</p>
+{% endblock %}

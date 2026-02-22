@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Apostas{% endblock %}
+{% block content %}
+<h1>📝 Lista de Apostas</h1>
+
+{% if filter_status %}
+<p class="text-muted">Filtrando por status: <strong>{{ filter_status }}</strong> | <a href="/bets">Ver todas</a></p>
+{% else %}
+<p class="text-muted">
+    Filtros: 
+    <a href="/bets?status=pending">Pendentes</a> | 
+    <a href="/bets?status=won">Ganhas</a> | 
+    <a href="/bets?status=lost">Perdidas</a>
+</p>
+{% endif %}
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Match</th>
+            <th>Aposta</th>
+            <th>Odds</th>
+            <th>Stake</th>
+            <th>Edge</th>
+            <th>Status</th>
+            <th>Profit</th>
+            <th>Data</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for bet in bets %}
+        <tr>
+            <td>{{ bet.id }}</td>
+            <td>{{ bet.match_name }}</td>
+            <td>{{ bet.bet_on }}</td>
+            <td>{{ "%.2f"|format(bet.odds) }}</td>
+            <td>R$ {{ "%.2f"|format(bet.stake) }}</td>
+            <td>{{ "%.1f"|format(bet.edge * 100) }}%</td>
+            <td>
+                <span class="badge bg-{% if bet.status == 'won' %}success{% elif bet.status == 'lost' %}danger{% else %}warning{% endif %}">
+                    {{ bet.status }}
+                </span>
+            </td>
+            <td class="{% if bet.profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                R$ {{ "%+.2f"|format(bet.profit) }}
+            </td>
+            <td>{{ bet.placed_at.strftime("%Y-%m-%d %H:%M") if bet.placed_at else "N/A" }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if not bets %}
+<div class="alert alert-info">Nenhuma aposta encontrada.</div>
+{% endif %}
+{% endblock %}

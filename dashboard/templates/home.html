@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>📊 Dashboard</h1>
+
+<div class="row mt-4">
+    <!-- Stats Cards -->
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h5>Total Profit</h5>
+                <h2>R$ {{ "%.2f"|format(total_profit) }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h5>ROI</h5>
+                <h2>{{ "%.1f"|format(roi) }}%</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <h5>Win Rate</h5>
+                <h2>{{ "%.1f"|format(win_rate) }}%</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning">
+            <div class="card-body">
+                <h5>Apostas Pendentes</h5>
+                <h2>{{ pending_bets }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">📈 Resumo Apostas</div>
+            <div class="card-body">
+                <p>Total: <strong>{{ total_bets }}</strong></p>
+                <p>Ganhas: <strong class="text-success">{{ won_bets }}</strong></p>
+                <p>Perdidas: <strong class="text-danger">{{ lost_bets }}</strong></p>
+                <p>Pendentes: <strong class="text-warning">{{ pending_bets }}</strong></p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">🏟️ Database</div>
+            <div class="card-body">
+                <p>Esportes: <strong>{{ total_sports }}</strong></p>
+                <p>Jogos totais: <strong>{{ total_matches }}</strong></p>
+                <p>Jogos pendentes: <strong>{{ pending_matches }}</strong></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4">
+    <a href="/opportunities" class="btn btn-primary btn-lg">🎯 Ver Oportunidades</a>
+</div>
+{% endblock %}

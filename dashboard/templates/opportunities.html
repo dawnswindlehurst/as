@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Oportunidades{% endblock %}
+{% block content %}
+<h1>🎯 Top Oportunidades</h1>
+<p class="text-muted">{{ total_found }} oportunidades encontradas (edge > 3%)</p>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Match</th>
+            <th>Apostar em</th>
+            <th>Odds</th>
+            <th>Nossa Prob</th>
+            <th>Prob Implícita</th>
+            <th>Edge</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for opp in opportunities %}
+        <tr class="{% if opp.edge >= 0.05 %}table-success{% endif %}">
+            <td>{{ opp.match_name }}</td>
+            <td>{{ opp.bet_on }}</td>
+            <td><strong>{{ "%.2f"|format(opp.odds) }}</strong></td>
+            <td>{{ "%.1f"|format(opp.our_probability * 100) }}%</td>
+            <td>{{ "%.1f"|format(opp.implied_probability * 100) }}%</td>
+            <td><span class="badge bg-{% if opp.edge >= 0.05 %}success{% else %}info{% endif %}">{{ "%.1f"|format(opp.edge * 100) }}%</span></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
