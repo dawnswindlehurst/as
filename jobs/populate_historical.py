@@ -22,6 +22,7 @@ ALLOWED_MATCH_YEARS = {2024, 2025, 2026}
 BASKETBALL_SPORT_ID = 4
 TENNIS_SPORT_ID = 2
 VOLLEYBALL_SPORT_ID = 1
+HOCKEY_SPORT_ID = 3
 
 # Superbet sport ids to keep in historical population (user-curated allowlist)
 ALLOWED_POPULATE_SUPERBET_SPORT_IDS = {
@@ -404,6 +405,12 @@ class HistoricalPopulateJob:
                 for key, value in volleyball.items():
                     if value is not None:
                         setattr(db_match, key, value)
+            # Hockey
+            elif sport_id == HOCKEY_SPORT_ID:
+                hockey = self._extract_hockey_stats(match_data)
+                for key, value in hockey.items():
+                    if value is not None:
+                        setattr(db_match, key, value)
 
             self.db.commit()
         except Exception as exc:
@@ -692,6 +699,135 @@ class HistoricalPopulateJob:
         result['point_diff_per_set'] = point_diffs if point_diffs else None
 
         return result
+
+    def _extract_hockey_stats(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract ice hockey-specific statistics from match data."""
+        result: Dict[str, Any] = {}
+
+        # Score by period
+        scores = match_data.get('scores', [])
+        for score in scores:
+            if not isinstance(score, dict):
+                continue
+            score_type = score.get('type')
+            team1 = score.get('team1', 0)
+            team2 = score.get('team2', 0)
+
+            if score_type == 1:
+                result['period1_home'] = team1
+                result['period1_away'] = team2
+            elif score_type == 2:
+                result['period2_home'] = team1
+                result['period2_away'] = team2
+            elif score_type == 3:
+                result['period3_home'] = team1
+                result['period3_away'] = team2
+            elif score_type == 4:
+                result['overtime_home'] = team1
+                result['overtime_away'] = team2
+            elif score_type == 5:
+                result['shootout_home'] = team1
+                result['shootout_away'] = team2
+
+        # Statistics - period=0 means match totals
+        statistics = match_data.get('statistics', [])
+        for period_stats in statistics:
+            if not isinstance(period_stats, dict):
+                continue
+            if period_stats.get('period') != 0:
+                continue
+
+            for stat in period_stats.get('data', []):
+                if not isinstance(stat, dict):
+                    continue
+                stat_type = stat.get('type')
+                team1_val = str(stat.get('team1', ''))
+                team2_val = str(stat.get('team2', ''))
+
+                if stat_type == 88:  # Puck possession
+                    result['puck_possession_home'] = self._parse_percentage(team1_val)
+                    result['puck_possession_away'] = self._parse_percentage(team2_val)
+                elif stat_type == 1:  # Shots on goal
+                    result['shots_on_goal_home'] = self._parse_stat_int(team1_val)
+                    result['shots_on_goal_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 84:  # Goals in power play
+                    result['power_play_goals_home'] = self._parse_stat_int(team1_val)
+                    result['power_play_goals_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 85:  # Goals while short handed
+                    result['short_handed_goals_home'] = self._parse_stat_int(team1_val)
+                    result['short_handed_goals_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 25:  # Penalties
+                    result['penalties_home'] = self._parse_stat_int(team1_val)
+                    result['penalties_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 86:  # Penalty minutes
+                    result['penalty_minutes_home'] = self._parse_stat_int(team1_val)
+                    result['penalty_minutes_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 87:  # Power plays
+                    result['power_plays_home'] = self._parse_stat_int(team1_val)
+                    result['power_plays_away'] = self._parse_stat_int(team2_val)
+                elif stat_type == 90:  # Saves
+                    result['saves_home'] = self._parse_stat_int(team1_val)
+                    result['saves_away'] = self._parse_stat_int(team2_val)
+
+        # Derived metrics
+        shots_home = result.get('shots_on_goal_home') or 0
+        shots_away = result.get('shots_on_goal_away') or 0
+        saves_home = result.get('saves_home') or 0
+        saves_away = result.get('saves_away') or 0
+        final_score = next((s for s in scores if isinstance(s, dict) and s.get('type') == 0), None)
+        goals_home = final_score.get('team1', 0) if final_score else 0
+        goals_away = final_score.get('team2', 0) if final_score else 0
+
+        if saves_home + goals_away > 0:
+            result['save_percentage_home'] = saves_home / (saves_home + goals_away)
+        if saves_away + goals_home > 0:
+            result['save_percentage_away'] = saves_away / (saves_away + goals_home)
+        if shots_home > 0:
+            result['shooting_percentage_home'] = goals_home / shots_home
+        if shots_away > 0:
+            result['shooting_percentage_away'] = goals_away / shots_away
+
+        # Goal events with players
+        goal_scorers = []
+        for event in match_data.get('live_events', []):
+            if not isinstance(event, dict):
+                continue
+            if event.get('type') != 1:  # 1 = Goal
+                continue
+            goal: Dict[str, Any] = {
+                'minute': event.get('minute', {}).get('value') if isinstance(event.get('minute'), dict) else None,
+                'team': event.get('position'),
+                'score': event.get('main', {}).get('text', {}).get('val') if isinstance(event.get('main'), dict) else None,
+            }
+            primary = event.get('primary') or {}
+            if primary:
+                goal['scorer'] = primary.get('text', {}).get('val') if isinstance(primary.get('text'), dict) else None
+                player_id = primary.get('player_id') or {}
+                goal['scorer_id'] = player_id.get('value') if isinstance(player_id, dict) else None
+            secondary = event.get('secondary') or {}
+            if secondary and secondary.get('text'):
+                goal['assist'] = secondary.get('text', {}).get('val') if isinstance(secondary.get('text'), dict) else None
+                assist_id = secondary.get('player_id') or {}
+                goal['assist_id'] = assist_id.get('value') if isinstance(assist_id, dict) else None
+            goal_scorers.append(goal)
+
+        if goal_scorers:
+            result['goal_scorers_raw'] = goal_scorers
+
+        return result
+
+    @staticmethod
+    def _parse_percentage(value: str) -> Optional[float]:
+        """Parse a percentage string like '56%' into a float like 0.56."""
+        if not value:
+            return None
+        m = re.match(r'(\d+(?:\.\d+)?)\s*%', str(value).strip())
+        if m:
+            return float(m.group(1)) / 100.0
+        try:
+            return float(str(value).strip()) / 100.0
+        except (ValueError, TypeError):
+            return None
 
     @staticmethod
     def _parse_stat_fraction(value: str):

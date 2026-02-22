@@ -244,6 +244,47 @@ class ScorealarmMatch(Base):
     avg_points_per_set_away = Column(Float, nullable=True)
     point_diff_per_set = Column(JSONBCompat, nullable=True)  # [2, 2, 7] point difference per set
 
+    # Hockey - Score by period
+    period1_home = Column(Integer, nullable=True)
+    period1_away = Column(Integer, nullable=True)
+    period2_home = Column(Integer, nullable=True)
+    period2_away = Column(Integer, nullable=True)
+    period3_home = Column(Integer, nullable=True)
+    period3_away = Column(Integer, nullable=True)
+    overtime_home = Column(Integer, nullable=True)
+    overtime_away = Column(Integer, nullable=True)
+    shootout_home = Column(Integer, nullable=True)
+    shootout_away = Column(Integer, nullable=True)
+
+    # Hockey - Main statistics
+    puck_possession_home = Column(Float, nullable=True)   # 0.56 (56%)
+    puck_possession_away = Column(Float, nullable=True)
+    saves_home = Column(Integer, nullable=True)           # Goalie saves
+    saves_away = Column(Integer, nullable=True)
+
+    # Hockey - Power play
+    power_plays_home = Column(Integer, nullable=True)
+    power_plays_away = Column(Integer, nullable=True)
+    power_play_goals_home = Column(Integer, nullable=True)
+    power_play_goals_away = Column(Integer, nullable=True)
+    short_handed_goals_home = Column(Integer, nullable=True)
+    short_handed_goals_away = Column(Integer, nullable=True)
+
+    # Hockey - Penalties
+    penalties_home = Column(Integer, nullable=True)
+    penalties_away = Column(Integer, nullable=True)
+    penalty_minutes_home = Column(Integer, nullable=True)
+    penalty_minutes_away = Column(Integer, nullable=True)
+
+    # Hockey - Calculated metrics
+    save_percentage_home = Column(Float, nullable=True)   # saves / (saves + goals_against)
+    save_percentage_away = Column(Float, nullable=True)
+    shooting_percentage_home = Column(Float, nullable=True)  # goals / shots_on_goal
+    shooting_percentage_away = Column(Float, nullable=True)
+
+    # Hockey - Goal events (raw)
+    goal_scorers_raw = Column(JSONBCompat, nullable=True)  # List of goals with players and assists
+
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
