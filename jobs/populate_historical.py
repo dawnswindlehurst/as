@@ -4,6 +4,7 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Dict, Optional
 from database.db import get_db_session
 from database.scorealarm_models import (
     ScorealarmSport, ScorealarmCategory, ScorealarmTournament,
@@ -18,6 +19,8 @@ from utils.logger import log
 # Constants
 MAX_TEAM_NAME_LENGTH = 50
 ALLOWED_MATCH_YEARS = {2024, 2025, 2026}
+BASKETBALL_SPORT_ID = 4
+TENNIS_SPORT_ID = 2
 
 # Superbet sport ids to keep in historical population (user-curated allowlist)
 ALLOWED_POPULATE_SUPERBET_SPORT_IDS = {
@@ -238,6 +241,7 @@ class HistoricalPopulateJob:
                                     db_sport_id,
                                     tournament.tournament_id,
                                     season_id,
+                                    scorealarm,
                                 )
                                 if inserted:
                                     stats["matches"] += 1
@@ -312,6 +316,7 @@ class HistoricalPopulateJob:
         sport_id: int,
         tournament_id: int,
         season_id: int,
+        scorealarm: Optional["ScorealarmClient"] = None,
     ) -> bool:
         """Salva ou atualiza match no DB."""
         existing = self.db.query(ScorealarmMatch).filter(
@@ -352,11 +357,207 @@ class HistoricalPopulateJob:
         self.db.add(db_match)
         self.db.commit()
         
+        # Fetch and save detailed match data for finished matches
+        if match.match_status == 100 and scorealarm and match.platform_id:
+            await self._fetch_and_save_match_detail(db_match, match.platform_id, scorealarm)
+
         # Salvar scores por período se existirem
         if match.scores:
             for score in match.scores:
                 await self._save_score(db_match.id, score)
         return True
+
+    async def _fetch_and_save_match_detail(
+        self, db_match: ScorealarmMatch, platform_id: str, scorealarm
+    ) -> None:
+        """Fetch raw event detail and persist all detailed fields to db_match."""
+        try:
+            raw = await scorealarm.get_match_detail_raw(platform_id)
+            if not raw:
+                return
+            match_data = raw.get('match', raw)
+            generic = self._extract_generic_stats(match_data)
+            for key, value in generic.items():
+                if value is not None:
+                    setattr(db_match, key, value)
+
+            sport_id = db_match.sport_id
+            # Basketball
+            if sport_id == BASKETBALL_SPORT_ID:
+                bball = self._extract_basketball_stats(raw.get('statistics', []))
+                for key, value in bball.items():
+                    if value is not None:
+                        setattr(db_match, key, value)
+                # Calculate lead_changes from score_trend
+                score_trend = match_data.get('score_trend', [])
+                db_match.lead_changes = self._calculate_lead_changes(score_trend)
+            # Tennis
+            elif sport_id == TENNIS_SPORT_ID:
+                tennis = self._extract_tennis_stats(match_data)
+                for key, value in tennis.items():
+                    if value is not None:
+                        setattr(db_match, key, value)
+
+            self.db.commit()
+        except Exception as exc:
+            log.warning(f"⚠️ Falha ao buscar detalhes de {platform_id}: {exc}")
+            self.db.rollback()
+
+    def _extract_generic_stats(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract generic fields available for all sports from match_data dict."""
+        result: Dict[str, Any] = {}
+
+        # Raw arrays
+        result['score_trend_raw'] = match_data.get('score_trend') or None
+        result['match_statistics_raw'] = match_data.get('statistics') or None
+        result['live_events_raw'] = match_data.get('live_events') or None
+
+        # Venue
+        venue = match_data.get('venue') or {}
+        stadium = venue.get('stadium') or {}
+        result['venue_id'] = stadium.get('id') or None
+
+        # Coverage
+        result['coverage_level'] = match_data.get('coverage') or None
+
+        # Period metadata
+        result['number_of_periods'] = match_data.get('number_of_periods') or None
+        result['period_duration'] = match_data.get('period_duration_minutes') or None
+        result['leading_team'] = match_data.get('leading_team') or None
+
+        return result
+
+    def _extract_basketball_stats(self, statistics: list) -> Dict[str, Any]:
+        """Extract basketball-specific stats from the statistics array.
+
+        Statistics type mapping (period=0 means full game):
+            37 = one_pointers (FT)
+            38 = two_pointers
+            39 = three_pointers
+            48 = field_goals
+            34 = rebounds
+            35 = defensive_rebounds
+            36 = offensive_rebounds
+            49 = assists
+            50 = turnovers
+            43 = steals
+            26 = shots_blocked
+             9 = fouls
+            45 = timeouts
+            77 = biggest_lead
+            78 = team_leads
+            79 = time_spent_in_lead
+        """
+        result: Dict[str, Any] = {}
+        if not statistics:
+            return result
+
+        # Find period=0 (full game) stats
+        full_game_stats = None
+        for period_entry in statistics:
+            if not isinstance(period_entry, dict):
+                continue
+            if period_entry.get('period') == 0:
+                full_game_stats = period_entry.get('stats', period_entry.get('data', []))
+                break
+
+        if not full_game_stats:
+            return result
+
+        stat_type_map = {
+            37: 'ft',        # free throws
+            38: 'fg2',       # 2-point field goals
+            39: 'fg3',       # 3-point field goals
+            34: 'rebounds',
+            49: 'assists',
+            50: 'turnovers',
+            43: 'steals',
+            26: 'blocks',
+            9: 'fouls',
+            77: 'biggest_lead',
+            79: 'time_in_lead',
+        }
+
+        for stat in full_game_stats:
+            if not isinstance(stat, dict):
+                continue
+            stat_type = stat.get('type')
+            if stat_type not in stat_type_map:
+                continue
+
+            team1_raw = stat.get('team1', '')
+            team2_raw = stat.get('team2', '')
+            name = stat_type_map[stat_type]
+
+            if name in ('ft', 'fg2', 'fg3'):
+                made_h, att_h = self._parse_stat_fraction(team1_raw)
+                made_a, att_a = self._parse_stat_fraction(team2_raw)
+                result[f'{name}_made_home'] = made_h
+                result[f'{name}_attempted_home'] = att_h
+                result[f'{name}_made_away'] = made_a
+                result[f'{name}_attempted_away'] = att_a
+            elif name in ('rebounds', 'assists', 'turnovers', 'steals', 'blocks', 'fouls'):
+                result[f'{name}_home'] = self._parse_stat_int(team1_raw)
+                result[f'{name}_away'] = self._parse_stat_int(team2_raw)
+            elif name == 'biggest_lead':
+                result['biggest_lead_home'] = self._parse_stat_int(team1_raw)
+                result['biggest_lead_away'] = self._parse_stat_int(team2_raw)
+            elif name == 'time_in_lead':
+                result['time_in_lead_home'] = team1_raw or None
+                result['time_in_lead_away'] = team2_raw or None
+
+        return result
+
+    def _extract_tennis_stats(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract tennis-specific fields from match data."""
+        result: Dict[str, Any] = {}
+        result['ground_type'] = match_data.get('ground_type') or None
+        result['team1_seed'] = match_data.get('team1_seed') or None
+        result['team2_seed'] = match_data.get('team2_seed') or None
+        result['tournament_round'] = match_data.get('tournament_round') or None
+        return result
+
+    @staticmethod
+    def _parse_stat_fraction(value: str):
+        """Parse '11/12 (92%)' -> (11, 12). Returns (None, None) on failure."""
+        if not value:
+            return None, None
+        # Try "made/attempted" pattern
+        m = re.match(r'(\d+)\s*/\s*(\d+)', str(value).strip())
+        if m:
+            return int(m.group(1)), int(m.group(2))
+        return None, None
+
+    @staticmethod
+    def _parse_stat_int(value) -> Optional[int]:
+        """Parse an integer stat value, returning None on failure."""
+        try:
+            return int(str(value).strip())
+        except (ValueError, TypeError):
+            return None
+
+    @staticmethod
+    def _calculate_lead_changes(score_trend: list) -> Optional[int]:
+        """Count lead changes from score_trend list.
+
+        A lead change occurs when the sign of 'diff' flips between entries
+        (excluding ties where diff == 0).
+        """
+        if not score_trend:
+            return None
+        changes = 0
+        prev_sign = None
+        for entry in score_trend:
+            if not isinstance(entry, dict):
+                continue
+            diff = entry.get('diff', 0)
+            if diff == 0:
+                continue
+            sign = 1 if diff > 0 else -1
+            if prev_sign is not None and sign != prev_sign:
+                changes += 1
+            prev_sign = sign
+        return changes
 
     def _filter_matches_by_year(self, matches: list) -> list:
         """Mantém apenas partidas com ano permitido."""

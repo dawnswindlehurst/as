@@ -1,2 +1,12 @@
 2026-02-22 12:07:04 | INFO     | database.db:<module>:48 - Database engine created with default settings
 2026-02-22 12:07:04 | INFO     | utils.player_registry:load_registry:38 - Player registry cache not found, starting fresh
+2026-02-22 12:09:02 | INFO     | utils.player_registry:load_registry:38 - Player registry cache not found, starting fresh
+2026-02-22 12:09:09 | INFO     | database.db:<module>:48 - Database engine created with default settings
+2026-02-22 12:09:09 | INFO     | utils.player_registry:load_registry:38 - Player registry cache not found, starting fresh
+2026-02-22 12:09:28 | INFO     | database.db:<module>:48 - Database engine created with default settings
+2026-02-22 12:09:28 | INFO     | utils.player_registry:load_registry:38 - Player registry cache not found, starting fresh
+2026-02-22 12:09:41 | INFO     | database.db:<module>:48 - Database engine created with default settings
+2026-02-22 12:09:41 | INFO     | utils.player_registry:load_registry:38 - Player registry cache not found, starting fresh
+2026-02-22 12:09:41 | WARNING  | jobs.populate_historical:_load_excluded_seasons:592 - ⚠️ Falha ao carregar exclusões de season: name 'EXCLUDED_SEASONS_FILE' is not defined
+2026-02-22 12:11:03 | INFO     | database.db:<module>:48 - Database engine created with default settings
+2026-02-22 12:11:03 | INFO     | utils.player_registry:load_registry:38 - Player registry cache not found, starting fresh
