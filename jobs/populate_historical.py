@@ -24,6 +24,7 @@ TENNIS_SPORT_ID = 2
 VOLLEYBALL_SPORT_ID = 1
 HOCKEY_SPORT_ID = 3
 HANDBALL_SPORT_ID = 11
+BASEBALL_SPORT_ID = 20
 
 # Superbet sport ids to keep in historical population (user-curated allowlist)
 ALLOWED_POPULATE_SUPERBET_SPORT_IDS = {
@@ -416,6 +417,12 @@ class HistoricalPopulateJob:
             elif sport_id == HANDBALL_SPORT_ID:
                 handball = self._extract_handball_stats(match_data)
                 for key, value in handball.items():
+                    if value is not None:
+                        setattr(db_match, key, value)
+            # Baseball
+            elif sport_id == BASEBALL_SPORT_ID:
+                baseball = self._extract_baseball_stats(match_data)
+                for key, value in baseball.items():
                     if value is not None:
                         setattr(db_match, key, value)
 
@@ -976,6 +983,102 @@ class HistoricalPopulateJob:
             result['penalty_goals_away'] = penalty_goals_away
         if goal_scorers:
             result['goal_scorers_raw'] = goal_scorers
+
+        return result
+
+    def _extract_baseball_stats(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract baseball-specific statistics from match data."""
+        result: Dict[str, Any] = {}
+
+        scores = match_data.get('scores', [])
+
+        # Score type to inning field mapping
+        # Types 1-5 = Innings 1-5, Types 13-16 = Innings 6-9, Types 17+ = Extra innings
+        inning_map = {
+            1:  ('inning1_home', 'inning1_away'),
+            2:  ('inning2_home', 'inning2_away'),
+            3:  ('inning3_home', 'inning3_away'),
+            4:  ('inning4_home', 'inning4_away'),
+            5:  ('inning5_home', 'inning5_away'),
+            13: ('inning6_home', 'inning6_away'),
+            14: ('inning7_home', 'inning7_away'),
+            15: ('inning8_home', 'inning8_away'),
+            16: ('inning9_home', 'inning9_away'),
+        }
+
+        extra_innings_home: list = []
+        extra_innings_away: list = []
+
+        for score in scores:
+            if not isinstance(score, dict):
+                continue
+            score_type = score.get('type')
+            team1 = score.get('team1', 0)
+            team2 = score.get('team2', 0)
+
+            if score_type in inning_map:
+                home_key, away_key = inning_map[score_type]
+                result[home_key] = team1
+                result[away_key] = team2
+            elif score_type is not None and score_type >= 17:  # Extra innings
+                extra_innings_home.append(team1)
+                extra_innings_away.append(team2)
+
+        if extra_innings_home:
+            result['extra_innings_home'] = extra_innings_home
+            result['extra_innings_away'] = extra_innings_away
+
+        # Calculate totals
+        innings_home = [
+            result.get('inning1_home') or 0,
+            result.get('inning2_home') or 0,
+            result.get('inning3_home') or 0,
+            result.get('inning4_home') or 0,
+            result.get('inning5_home') or 0,
+            result.get('inning6_home') or 0,
+            result.get('inning7_home') or 0,
+            result.get('inning8_home') or 0,
+            result.get('inning9_home') or 0,
+        ]
+        innings_away = [
+            result.get('inning1_away') or 0,
+            result.get('inning2_away') or 0,
+            result.get('inning3_away') or 0,
+            result.get('inning4_away') or 0,
+            result.get('inning5_away') or 0,
+            result.get('inning6_away') or 0,
+            result.get('inning7_away') or 0,
+            result.get('inning8_away') or 0,
+            result.get('inning9_away') or 0,
+        ]
+
+        total_home = sum(innings_home) + sum(extra_innings_home)
+        total_away = sum(innings_away) + sum(extra_innings_away)
+
+        # Store totals unconditionally (0 is valid for shutout games)
+        result['total_runs_home'] = total_home
+        result['total_runs_away'] = total_away
+
+        # Total innings played
+        innings_played = 9 + len(extra_innings_home)
+        result['total_innings_played'] = innings_played
+
+        # Average runs per inning
+        if innings_played > 0:
+            result['runs_per_inning_home'] = round(total_home / innings_played, 2)
+            result['runs_per_inning_away'] = round(total_away / innings_played, 2)
+
+        # First 5 innings (F5 betting) - only set when we have at least some inning data
+        has_inning_data = any(
+            result.get(f'inning{i}_home') is not None for i in range(1, 6)
+        )
+        if has_inning_data:
+            result['first_5_innings_home'] = sum(innings_home[:5])
+            result['first_5_innings_away'] = sum(innings_away[:5])
+
+        # Last 4 innings (innings 6-9 only, extra innings tracked separately)
+        result['last_4_innings_home'] = sum(innings_home[5:9])
+        result['last_4_innings_away'] = sum(innings_away[5:9])
 
         return result
 
