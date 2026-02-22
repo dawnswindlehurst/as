@@ -218,6 +218,32 @@ class ScorealarmMatch(Base):
     time_in_lead_away = Column(String(10), nullable=True)  # "00:00"
     lead_changes = Column(Integer, nullable=True)          # calculated from score_trend
 
+    # Volleyball - Sets
+    sets_home = Column(Integer, nullable=True)              # Sets won by home team
+    sets_away = Column(Integer, nullable=True)              # Sets won by away team
+
+    # Volleyball - Points per set
+    set1_home = Column(Integer, nullable=True)
+    set1_away = Column(Integer, nullable=True)
+    set2_home = Column(Integer, nullable=True)
+    set2_away = Column(Integer, nullable=True)
+    set3_home = Column(Integer, nullable=True)
+    set3_away = Column(Integer, nullable=True)
+    set4_home = Column(Integer, nullable=True)
+    set4_away = Column(Integer, nullable=True)
+    set5_home = Column(Integer, nullable=True)
+    set5_away = Column(Integer, nullable=True)
+
+    # Volleyball - Calculated totals
+    total_points_home = Column(Integer, nullable=True)      # Sum of all points scored
+    total_points_away = Column(Integer, nullable=True)
+    total_sets_played = Column(Integer, nullable=True)      # 3, 4 or 5
+
+    # Volleyball - Derived metrics
+    avg_points_per_set_home = Column(Float, nullable=True)  # Average points per set
+    avg_points_per_set_away = Column(Float, nullable=True)
+    point_diff_per_set = Column(JSONBCompat, nullable=True)  # [2, 2, 7] point difference per set
+
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

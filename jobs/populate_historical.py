@@ -21,6 +21,7 @@ MAX_TEAM_NAME_LENGTH = 50
 ALLOWED_MATCH_YEARS = {2024, 2025, 2026}
 BASKETBALL_SPORT_ID = 4
 TENNIS_SPORT_ID = 2
+VOLLEYBALL_SPORT_ID = 1
 
 # Superbet sport ids to keep in historical population (user-curated allowlist)
 ALLOWED_POPULATE_SUPERBET_SPORT_IDS = {
@@ -397,6 +398,12 @@ class HistoricalPopulateJob:
                 for key, value in tennis.items():
                     if value is not None:
                         setattr(db_match, key, value)
+            # Volleyball
+            elif sport_id == VOLLEYBALL_SPORT_ID:
+                volleyball = self._extract_volleyball_stats(match_data)
+                for key, value in volleyball.items():
+                    if value is not None:
+                        setattr(db_match, key, value)
 
             self.db.commit()
         except Exception as exc:
@@ -612,6 +619,77 @@ class HistoricalPopulateJob:
 
         # Point by point raw
         result['point_by_point_raw'] = match_data.get('point_by_point') or None
+
+        return result
+
+    def _extract_volleyball_stats(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract volleyball-specific statistics from match data."""
+        result: Dict[str, Any] = {}
+
+        scores = match_data.get('scores', [])
+
+        for score in scores:
+            if not isinstance(score, dict):
+                continue
+            score_type = score.get('type')
+            team1 = score.get('team1', 0)
+            team2 = score.get('team2', 0)
+
+            if score_type == 0:  # Sets won
+                result['sets_home'] = team1
+                result['sets_away'] = team2
+            elif score_type == 1:
+                result['set1_home'] = team1
+                result['set1_away'] = team2
+            elif score_type == 2:
+                result['set2_home'] = team1
+                result['set2_away'] = team2
+            elif score_type == 3:
+                result['set3_home'] = team1
+                result['set3_away'] = team2
+            elif score_type == 4:
+                result['set4_home'] = team1
+                result['set4_away'] = team2
+            elif score_type == 5:
+                result['set5_home'] = team1
+                result['set5_away'] = team2
+
+        # Calculate totals
+        total_home = sum([
+            result.get('set1_home', 0) or 0,
+            result.get('set2_home', 0) or 0,
+            result.get('set3_home', 0) or 0,
+            result.get('set4_home', 0) or 0,
+            result.get('set5_home', 0) or 0,
+        ])
+        total_away = sum([
+            result.get('set1_away', 0) or 0,
+            result.get('set2_away', 0) or 0,
+            result.get('set3_away', 0) or 0,
+            result.get('set4_away', 0) or 0,
+            result.get('set5_away', 0) or 0,
+        ])
+
+        result['total_points_home'] = total_home if total_home > 0 else None
+        result['total_points_away'] = total_away if total_away > 0 else None
+
+        # Calculate sets played
+        sets_played = (result.get('sets_home', 0) or 0) + (result.get('sets_away', 0) or 0)
+        result['total_sets_played'] = sets_played if sets_played > 0 else None
+
+        # Average points per set
+        if sets_played > 0:
+            result['avg_points_per_set_home'] = total_home / sets_played
+            result['avg_points_per_set_away'] = total_away / sets_played
+
+        # Point difference per set
+        point_diffs = []
+        for i in range(1, 6):
+            home = result.get(f'set{i}_home')
+            away = result.get(f'set{i}_away')
+            if home is not None and away is not None and (home > 0 or away > 0):
+                point_diffs.append(home - away)
+        result['point_diff_per_set'] = point_diffs if point_diffs else None
 
         return result
 
