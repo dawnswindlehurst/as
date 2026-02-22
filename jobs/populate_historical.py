@@ -25,6 +25,10 @@ VOLLEYBALL_SPORT_ID = 1
 HOCKEY_SPORT_ID = 3
 HANDBALL_SPORT_ID = 11
 BASEBALL_SPORT_ID = 20
+WATER_POLO_SPORT_ID = 15
+TABLE_TENNIS_SPORT_ID = 24
+RUGBY_SPORT_ID = 8
+BANDY_SPORT_ID = 7
 
 # Superbet sport ids to keep in historical population (user-curated allowlist)
 ALLOWED_POPULATE_SUPERBET_SPORT_IDS = {
@@ -423,6 +427,30 @@ class HistoricalPopulateJob:
             elif sport_id == BASEBALL_SPORT_ID:
                 baseball = self._extract_baseball_stats(match_data)
                 for key, value in baseball.items():
+                    if value is not None:
+                        setattr(db_match, key, value)
+            # Water Polo
+            elif sport_id == WATER_POLO_SPORT_ID:
+                water_polo = self._extract_water_polo_stats(match_data)
+                for key, value in water_polo.items():
+                    if value is not None:
+                        setattr(db_match, key, value)
+            # Table Tennis
+            elif sport_id == TABLE_TENNIS_SPORT_ID:
+                table_tennis = self._extract_table_tennis_stats(match_data)
+                for key, value in table_tennis.items():
+                    if value is not None:
+                        setattr(db_match, key, value)
+            # Rugby
+            elif sport_id == RUGBY_SPORT_ID:
+                rugby = self._extract_rugby_stats(match_data)
+                for key, value in rugby.items():
+                    if value is not None:
+                        setattr(db_match, key, value)
+            # Bandy
+            elif sport_id == BANDY_SPORT_ID:
+                bandy = self._extract_bandy_stats(match_data)
+                for key, value in bandy.items():
                     if value is not None:
                         setattr(db_match, key, value)
 
@@ -1079,6 +1107,206 @@ class HistoricalPopulateJob:
         # Last 4 innings (innings 6-9 only, extra innings tracked separately)
         result['last_4_innings_home'] = sum(innings_home[5:9])
         result['last_4_innings_away'] = sum(innings_away[5:9])
+
+        return result
+
+    def _extract_water_polo_stats(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract water polo-specific statistics from match data (4 quarters)."""
+        result: Dict[str, Any] = {}
+        scores = match_data.get('scores', [])
+
+        quarter_map = {
+            1: ('wp_quarter1_home', 'wp_quarter1_away'),
+            2: ('wp_quarter2_home', 'wp_quarter2_away'),
+            3: ('wp_quarter3_home', 'wp_quarter3_away'),
+            4: ('wp_quarter4_home', 'wp_quarter4_away'),
+        }
+
+        for score in scores:
+            if not isinstance(score, dict):
+                continue
+            score_type = score.get('type')
+            team1 = score.get('team1', 0)
+            team2 = score.get('team2', 0)
+
+            if score_type in quarter_map:
+                home_key, away_key = quarter_map[score_type]
+                result[home_key] = team1
+                result[away_key] = team2
+
+        # Calculate half totals
+        q1h = result.get('wp_quarter1_home', 0) or 0
+        q2h = result.get('wp_quarter2_home', 0) or 0
+        q3h = result.get('wp_quarter3_home', 0) or 0
+        q4h = result.get('wp_quarter4_home', 0) or 0
+        q1a = result.get('wp_quarter1_away', 0) or 0
+        q2a = result.get('wp_quarter2_away', 0) or 0
+        q3a = result.get('wp_quarter3_away', 0) or 0
+        q4a = result.get('wp_quarter4_away', 0) or 0
+
+        result['wp_first_half_home'] = q1h + q2h
+        result['wp_first_half_away'] = q1a + q2a
+        result['wp_second_half_home'] = q3h + q4h
+        result['wp_second_half_away'] = q3a + q4a
+
+        total_home = q1h + q2h + q3h + q4h
+        total_away = q1a + q2a + q3a + q4a
+
+        result['wp_total_goals_home'] = total_home if total_home > 0 else None
+        result['wp_total_goals_away'] = total_away if total_away > 0 else None
+
+        if total_home > 0:
+            result['wp_goals_per_quarter_home'] = round(total_home / 4, 2)
+        if total_away > 0:
+            result['wp_goals_per_quarter_away'] = round(total_away / 4, 2)
+
+        return result
+
+    def _extract_table_tennis_stats(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract table tennis-specific statistics from match data (up to 7 sets)."""
+        result: Dict[str, Any] = {}
+        scores = match_data.get('scores', [])
+
+        set_map = {
+            1: ('tt_set1_home', 'tt_set1_away'),
+            2: ('tt_set2_home', 'tt_set2_away'),
+            3: ('tt_set3_home', 'tt_set3_away'),
+            4: ('tt_set4_home', 'tt_set4_away'),
+            5: ('tt_set5_home', 'tt_set5_away'),
+            6: ('tt_set6_home', 'tt_set6_away'),
+            7: ('tt_set7_home', 'tt_set7_away'),
+        }
+
+        close_sets = 0
+        deuce_sets = 0
+
+        for score in scores:
+            if not isinstance(score, dict):
+                continue
+            score_type = score.get('type')
+            team1 = score.get('team1', 0)
+            team2 = score.get('team2', 0)
+
+            if score_type == 0:  # Sets won
+                result['tt_sets_home'] = team1
+                result['tt_sets_away'] = team2
+            elif score_type in set_map:
+                home_key, away_key = set_map[score_type]
+                result[home_key] = team1
+                result[away_key] = team2
+
+                # Track deuce sets (both reached 10+) and close sets (deuce ended by 2 pts)
+                if team1 >= 10 and team2 >= 10:
+                    deuce_sets += 1
+                    if abs(team1 - team2) == 2:
+                        close_sets += 1
+
+        # Calculate totals
+        total_home = sum(result.get(f'tt_set{i}_home', 0) or 0 for i in range(1, 8))
+        total_away = sum(result.get(f'tt_set{i}_away', 0) or 0 for i in range(1, 8))
+
+        result['tt_total_points_home'] = total_home if total_home > 0 else None
+        result['tt_total_points_away'] = total_away if total_away > 0 else None
+
+        sets_played = (result.get('tt_sets_home', 0) or 0) + (result.get('tt_sets_away', 0) or 0)
+        result['tt_total_sets_played'] = sets_played if sets_played > 0 else None
+
+        if sets_played > 0:
+            result['tt_avg_points_per_set_home'] = round(total_home / sets_played, 2)
+            result['tt_avg_points_per_set_away'] = round(total_away / sets_played, 2)
+
+        result['tt_close_sets'] = close_sets if close_sets > 0 else None
+        result['tt_deuce_sets'] = deuce_sets if deuce_sets > 0 else None
+
+        return result
+
+    def _extract_rugby_stats(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract rugby-specific statistics from match data (2 halves of 40 min)."""
+        result: Dict[str, Any] = {}
+        scores = match_data.get('scores', [])
+
+        for score in scores:
+            if not isinstance(score, dict):
+                continue
+            score_type = score.get('type')
+            team1 = score.get('team1', 0)
+            team2 = score.get('team2', 0)
+
+            if score_type == 0:  # Final
+                result['rugby_total_points_home'] = team1
+                result['rugby_total_points_away'] = team2
+            elif score_type == 1:  # 1st half
+                result['rugby_first_half_home'] = team1
+                result['rugby_first_half_away'] = team2
+            elif score_type == 2:  # 2nd half
+                result['rugby_second_half_home'] = team1
+                result['rugby_second_half_away'] = team2
+
+        # Calculate derived metrics
+        h1_home = result.get('rugby_first_half_home', 0) or 0
+        h1_away = result.get('rugby_first_half_away', 0) or 0
+        h2_home = result.get('rugby_second_half_home', 0) or 0
+        h2_away = result.get('rugby_second_half_away', 0) or 0
+        total_home = result.get('rugby_total_points_home', 0) or 0
+        total_away = result.get('rugby_total_points_away', 0) or 0
+
+        result['rugby_first_half_margin'] = h1_home - h1_away
+        result['rugby_second_half_margin'] = h2_home - h2_away
+
+        # Detect comeback (losing at HT, won at FT)
+        ht_leader = 1 if h1_home > h1_away else (2 if h1_away > h1_home else 0)
+        ft_leader = 1 if total_home > total_away else (2 if total_away > total_home else 0)
+        result['rugby_comeback'] = (ht_leader != 0 and ft_leader != 0 and ht_leader != ft_leader)
+
+        if h1_home + h2_home > 0:
+            result['rugby_points_per_half_home'] = round((h1_home + h2_home) / 2, 2)
+        if h1_away + h2_away > 0:
+            result['rugby_points_per_half_away'] = round((h1_away + h2_away) / 2, 2)
+
+        return result
+
+    def _extract_bandy_stats(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract bandy-specific statistics from match data (2 halves of 45 min)."""
+        result: Dict[str, Any] = {}
+        scores = match_data.get('scores', [])
+
+        for score in scores:
+            if not isinstance(score, dict):
+                continue
+            score_type = score.get('type')
+            team1 = score.get('team1', 0)
+            team2 = score.get('team2', 0)
+
+            if score_type == 0:  # Final
+                result['bandy_total_goals_home'] = team1
+                result['bandy_total_goals_away'] = team2
+            elif score_type == 1:  # 1st half
+                result['bandy_first_half_home'] = team1
+                result['bandy_first_half_away'] = team2
+            elif score_type == 2:  # 2nd half
+                result['bandy_second_half_home'] = team1
+                result['bandy_second_half_away'] = team2
+
+        # Calculate derived metrics
+        h1_home = result.get('bandy_first_half_home', 0) or 0
+        h1_away = result.get('bandy_first_half_away', 0) or 0
+        h2_home = result.get('bandy_second_half_home', 0) or 0
+        h2_away = result.get('bandy_second_half_away', 0) or 0
+        total_home = result.get('bandy_total_goals_home', 0) or 0
+        total_away = result.get('bandy_total_goals_away', 0) or 0
+
+        result['bandy_first_half_margin'] = h1_home - h1_away
+        result['bandy_second_half_margin'] = h2_home - h2_away
+
+        # Detect comeback (losing at HT, won at FT)
+        ht_leader = 1 if h1_home > h1_away else (2 if h1_away > h1_home else 0)
+        ft_leader = 1 if total_home > total_away else (2 if total_away > total_home else 0)
+        result['bandy_comeback'] = (ht_leader != 0 and ft_leader != 0 and ht_leader != ft_leader)
+
+        if h1_home + h2_home > 0:
+            result['bandy_goals_per_half_home'] = round((h1_home + h2_home) / 2, 2)
+        if h1_away + h2_away > 0:
+            result['bandy_goals_per_half_away'] = round((h1_away + h2_away) / 2, 2)
 
         return result
 
