@@ -18,7 +18,6 @@ from utils.logger import log
 # Constants
 MAX_TEAM_NAME_LENGTH = 50
 ALLOWED_MATCH_YEARS = {2024, 2025, 2026}
-FOOTBALL_SUPERBET_SPORT_ID = 5
 
 # Superbet sport ids to keep in historical population (user-curated allowlist)
 ALLOWED_POPULATE_SUPERBET_SPORT_IDS = {
@@ -239,8 +238,6 @@ class HistoricalPopulateJob:
                                     db_sport_id,
                                     tournament.tournament_id,
                                     season_id,
-                                    sport,
-                                    scorealarm,
                                 )
                                 if inserted:
                                     stats["matches"] += 1
@@ -315,8 +312,6 @@ class HistoricalPopulateJob:
         sport_id: int,
         tournament_id: int,
         season_id: int,
-        sport,
-        scorealarm,
     ) -> bool:
         """Salva ou atualiza match no DB."""
         existing = self.db.query(ScorealarmMatch).filter(
@@ -324,12 +319,6 @@ class HistoricalPopulateJob:
         ).first()
         
         if existing:
-            if sport.id == FOOTBALL_SUPERBET_SPORT_ID:
-                if self._has_football_extra_data(existing):
-                    return False
-
-                await self._enrich_football_match_inline(existing, scorealarm)
-                self.db.commit()
             return False  # Já existe
         
         # Salvar times se não existirem
@@ -362,108 +351,12 @@ class HistoricalPopulateJob:
         )
         self.db.add(db_match)
         self.db.commit()
-
-        if sport.id == FOOTBALL_SUPERBET_SPORT_ID:
-            await self._enrich_football_match_inline(db_match, scorealarm)
-            self.db.commit()
         
         # Salvar scores por período se existirem
         if match.scores:
             for score in match.scores:
                 await self._save_score(db_match.id, score)
         return True
-
-    async def _enrich_football_match_inline(self, db_match, scorealarm):
-        """Enriquece partidas de futebol durante o populate via chamada V2."""
-        fixture_id = db_match.offer_id
-        if not fixture_id:
-            return
-
-        fixture_stats = await scorealarm.get_fixture_stats(fixture_id, sport_hint="soccer")
-        await self.limiter.wait()
-
-        if not fixture_stats:
-            db_match.enriched_at = datetime.now(timezone.utc)
-            return
-
-        match_stats = fixture_stats.match_stats or []
-        live_events = fixture_stats.live_events or []
-
-        if match_stats:
-            db_match.match_stats_raw = [
-                {
-                    "type": stat.type,
-                    "team1": stat.team1,
-                    "team2": stat.team2,
-                    "stat_name": stat.stat_name,
-                }
-                for stat in match_stats
-            ]
-
-        if live_events:
-            db_match.live_events_raw = [
-                {
-                    "type": event.type,
-                    "subtype": event.subtype,
-                    "minute": event.minute,
-                    "added_time": event.added_time,
-                    "side": event.side,
-                    "player_id": event.player_id,
-                    "player_name": event.player_name,
-                    "secondary_player_id": event.secondary_player_id,
-                    "secondary_player_name": event.secondary_player_name,
-                    "score": event.score,
-                }
-                for event in live_events
-            ]
-
-        self._extract_football_stats(db_match, match_stats, live_events)
-        db_match.enriched_at = datetime.now(timezone.utc)
-
-    def _extract_football_stats(self, db_match, match_stats, live_events):
-        """Extrai métricas de futebol (xG, finalizações no alvo, escanteios, gols)."""
-        xg_stat = next((stat for stat in match_stats if stat.type == 19), None)
-        if xg_stat:
-            try:
-                db_match.xg_home = float(xg_stat.team1) if xg_stat.team1 else None
-                db_match.xg_away = float(xg_stat.team2) if xg_stat.team2 else None
-            except (ValueError, TypeError):
-                db_match.xg_home = None
-                db_match.xg_away = None
-
-        shots_stat = next((stat for stat in match_stats if stat.type == 2), None)
-        if shots_stat:
-            try:
-                db_match.shots_on_goal_home = int(shots_stat.team1) if shots_stat.team1 else None
-                db_match.shots_on_goal_away = int(shots_stat.team2) if shots_stat.team2 else None
-            except (ValueError, TypeError):
-                db_match.shots_on_goal_home = None
-                db_match.shots_on_goal_away = None
-
-        corners_stat = next((stat for stat in match_stats if stat.type == 5), None)
-        if corners_stat:
-            try:
-                db_match.corners_home = int(corners_stat.team1) if corners_stat.team1 else None
-                db_match.corners_away = int(corners_stat.team2) if corners_stat.team2 else None
-            except (ValueError, TypeError):
-                db_match.corners_home = None
-                db_match.corners_away = None
-
-        goal_events = [event for event in live_events if event.type == 4]
-        if goal_events:
-            db_match.goal_events = [
-                {
-                    "minute": event.minute,
-                    "added_time": event.added_time,
-                    "player_id": event.player_id,
-                    "player_name": event.player_name,
-                    "assist_player_id": event.secondary_player_id,
-                    "assist_player_name": event.secondary_player_name,
-                    "side": event.side,
-                    "score": event.score,
-                }
-                for event in goal_events
-            ]
 
     def _filter_matches_by_year(self, matches: list) -> list:
         """Mantém apenas partidas com ano permitido."""
