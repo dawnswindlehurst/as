@@ -1,0 +1,181 @@
+"""Scorealarm database models for multi-sport support."""
+from datetime import datetime, date, timezone
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Date, JSON, Text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.types import TypeDecorator
+from database.models import Base
+
+
+class JSONBCompat(TypeDecorator):
+    """JSONB type that falls back to JSON for non-PostgreSQL databases."""
+    impl = JSON
+    cache_ok = True
+    
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(JSONB())
+        else:
+            return dialect.type_descriptor(JSON())
+
+
+class ScorealarmSport(Base):
+    """Sports available in Scorealarm."""
+    __tablename__ = "scorealarm_sports"
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    superbet_id = Column(Integer, unique=True)
+    is_gold = Column(Boolean, default=False)  # Esportes menos analisados
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class ScorealarmCategory(Base):
+    """Categories (countries/regions) for tournaments."""
+    __tablename__ = "scorealarm_categories"
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    sport_id = Column(Integer, ForeignKey("scorealarm_sports.id"))
+    country_code = Column(String(10))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class ScorealarmTournament(Base):
+    """Tournaments/Leagues."""
+    __tablename__ = "scorealarm_tournaments"
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), nullable=False)
+    category_id = Column(Integer, ForeignKey("scorealarm_categories.id"))
+    sport_id = Column(Integer, ForeignKey("scorealarm_sports.id"))
+    axilis_id = Column(String(100))  # ax:tournament:xxx
+    betradar_id = Column(String(100))  # br:tournament:xxx
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class ScorealarmSeason(Base):
+    """Seasons within tournaments."""
+    __tablename__ = "scorealarm_seasons"
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200))
+    tournament_id = Column(Integer, ForeignKey("scorealarm_tournaments.id"))
+    axilis_id = Column(String(100))  # ax:season:xxx
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    is_current = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class ScorealarmTeam(Base):
+    """Teams across all sports."""
+    __tablename__ = "scorealarm_teams"
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), nullable=False)
+    short_name = Column(String(50))
+    sport_id = Column(Integer, ForeignKey("scorealarm_sports.id"))
+    country_code = Column(String(10))
+    axilis_id = Column(String(100))  # ax:team:xxx
+    betradar_id = Column(String(100))  # br:competitor:xxx
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class ScorealarmMatch(Base):
+    """Matches/Events from Scorealarm."""
+    __tablename__ = "scorealarm_matches"
+    
+    id = Column(Integer, primary_key=True)
+    
+    # IDs externos
+    platform_id = Column(String(100))  # br:match:xxx
+    offer_id = Column(String(100))  # ax:match:xxx
+    
+    # Relacionamentos
+    sport_id = Column(Integer, ForeignKey("scorealarm_sports.id"))
+    tournament_id = Column(Integer, ForeignKey("scorealarm_tournaments.id"))
+    season_id = Column(Integer, ForeignKey("scorealarm_seasons.id"))
+    team1_id = Column(Integer, ForeignKey("scorealarm_teams.id"))
+    team2_id = Column(Integer, ForeignKey("scorealarm_teams.id"))
+    
+    # Match info
+    match_date = Column(DateTime, index=True)
+    match_status = Column(Integer)  # 0=scheduled, 100=finished, etc
+    
+    # Scores
+    team1_score = Column(Integer, nullable=True)
+    team2_score = Column(Integer, nullable=True)
+    
+    # Status de processamento
+    is_finished = Column(Boolean, default=False, index=True)
+    finished_at = Column(DateTime, nullable=True)
+    
+    # V2 API Enrichment - Detailed stats
+    enriched_at = Column(DateTime, nullable=True, index=True)
+    xg_home = Column(Float, nullable=True)  # Expected Goals home team
+    xg_away = Column(Float, nullable=True)  # Expected Goals away team
+    shots_on_goal_home = Column(Integer, nullable=True)
+    shots_on_goal_away = Column(Integer, nullable=True)
+    corners_home = Column(Integer, nullable=True)
+    corners_away = Column(Integer, nullable=True)
+    goal_events = Column(JSON, nullable=True)  # List of goal events with player details
+    
+    # V2 API Raw Data - Complete API response for future analysis
+    match_stats_raw = Column(JSONBCompat, nullable=True)  # All match statistics from API
+    live_events_raw = Column(JSONBCompat, nullable=True)  # All live events from API
+
+    # Tennis-focused enrichment (sport_id=57)
+    tennis_match_metrics = Column(JSONBCompat, nullable=True)  # Aggregated tennis metrics (aces, break points, serve stats)
+    tennis_period_metrics = Column(JSONBCompat, nullable=True)  # Tennis metrics by period/set
+    
+    # Timestamps
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class ScorealarmScore(Base):
+    """Scores por período (quarter, half, set, map, etc)."""
+    __tablename__ = "scorealarm_scores"
+    
+    id = Column(Integer, primary_key=True)
+    match_id = Column(Integer, ForeignKey("scorealarm_matches.id"))
+    period_type = Column(String(50))  # "q1", "q2", "half1", "set1", "map1", etc
+    period_number = Column(Integer)
+    team1_score = Column(Integer)
+    team2_score = Column(Integer)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class OddsHistory(Base):
+    """Histórico de odds para detectar movimentos."""
+    __tablename__ = "odds_history"
+    
+    id = Column(Integer, primary_key=True)
+    match_id = Column(Integer, ForeignKey("scorealarm_matches.id"))
+    
+    market_type = Column(String(50))  # "moneyline", "over_under", "handicap"
+    team1_odds = Column(Float)
+    team2_odds = Column(Float)
+    draw_odds = Column(Float, nullable=True)
+    line = Column(Float, nullable=True)  # Para over/under, handicap
+    
+    bookmaker = Column(String(50), default="superbet")
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+class ScorealarmTeamRating(Base):
+    """Rating ELO/Glicko dos times do Scorealarm."""
+    __tablename__ = "scorealarm_team_ratings"
+    
+    id = Column(Integer, primary_key=True)
+    team_id = Column(Integer, ForeignKey("scorealarm_teams.id"), unique=True)
+    
+    elo_rating = Column(Float, default=1500.0)
+    glicko_rating = Column(Float, default=1500.0)
+    glicko_rd = Column(Float, default=350.0)  # Rating deviation
+    glicko_vol = Column(Float, default=0.06)  # Volatility
+    
+    matches_played = Column(Integer, default=0)
+    last_match_date = Column(DateTime, nullable=True)
+    
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
