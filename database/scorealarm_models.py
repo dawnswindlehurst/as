@@ -372,6 +372,91 @@ class ScorealarmMatch(Base):
     last_4_innings_home = Column(Integer, nullable=True)      # Runs in last 4 innings
     last_4_innings_away = Column(Integer, nullable=True)
 
+    # Water Polo - Score by quarter (4 quarters of 8 min)
+    wp_quarter1_home = Column(Integer, nullable=True)
+    wp_quarter1_away = Column(Integer, nullable=True)
+    wp_quarter2_home = Column(Integer, nullable=True)
+    wp_quarter2_away = Column(Integer, nullable=True)
+    wp_quarter3_home = Column(Integer, nullable=True)
+    wp_quarter3_away = Column(Integer, nullable=True)
+    wp_quarter4_home = Column(Integer, nullable=True)
+    wp_quarter4_away = Column(Integer, nullable=True)
+
+    # Water Polo - Half totals
+    wp_first_half_home = Column(Integer, nullable=True)       # Q1 + Q2
+    wp_first_half_away = Column(Integer, nullable=True)
+    wp_second_half_home = Column(Integer, nullable=True)      # Q3 + Q4
+    wp_second_half_away = Column(Integer, nullable=True)
+
+    # Water Polo - Calculated metrics
+    wp_total_goals_home = Column(Integer, nullable=True)
+    wp_total_goals_away = Column(Integer, nullable=True)
+    wp_goals_per_quarter_home = Column(Float, nullable=True)  # Average per quarter
+    wp_goals_per_quarter_away = Column(Float, nullable=True)
+
+    # Table Tennis - Sets won
+    tt_sets_home = Column(Integer, nullable=True)
+    tt_sets_away = Column(Integer, nullable=True)
+
+    # Table Tennis - Points per set (up to 7 sets)
+    tt_set1_home = Column(Integer, nullable=True)
+    tt_set1_away = Column(Integer, nullable=True)
+    tt_set2_home = Column(Integer, nullable=True)
+    tt_set2_away = Column(Integer, nullable=True)
+    tt_set3_home = Column(Integer, nullable=True)
+    tt_set3_away = Column(Integer, nullable=True)
+    tt_set4_home = Column(Integer, nullable=True)
+    tt_set4_away = Column(Integer, nullable=True)
+    tt_set5_home = Column(Integer, nullable=True)
+    tt_set5_away = Column(Integer, nullable=True)
+    tt_set6_home = Column(Integer, nullable=True)
+    tt_set6_away = Column(Integer, nullable=True)
+    tt_set7_home = Column(Integer, nullable=True)
+    tt_set7_away = Column(Integer, nullable=True)
+
+    # Table Tennis - Calculated totals and metrics
+    tt_total_points_home = Column(Integer, nullable=True)
+    tt_total_points_away = Column(Integer, nullable=True)
+    tt_total_sets_played = Column(Integer, nullable=True)
+    tt_avg_points_per_set_home = Column(Float, nullable=True)
+    tt_avg_points_per_set_away = Column(Float, nullable=True)
+    tt_close_sets = Column(Integer, nullable=True)            # Sets decided by exactly 2 pts after deuce (e.g. 12-10, 13-11, 15-13)
+    tt_deuce_sets = Column(Integer, nullable=True)            # Sets that went past 10-10 (both reached 10+)
+
+    # Rugby - Score by half
+    rugby_first_half_home = Column(Integer, nullable=True)
+    rugby_first_half_away = Column(Integer, nullable=True)
+    rugby_second_half_home = Column(Integer, nullable=True)
+    rugby_second_half_away = Column(Integer, nullable=True)
+
+    # Rugby - Totals
+    rugby_total_points_home = Column(Integer, nullable=True)
+    rugby_total_points_away = Column(Integer, nullable=True)
+
+    # Rugby - Derived metrics
+    rugby_first_half_margin = Column(Integer, nullable=True)
+    rugby_second_half_margin = Column(Integer, nullable=True)
+    rugby_comeback = Column(Boolean, nullable=True)           # Team losing at HT won FT
+    rugby_points_per_half_home = Column(Float, nullable=True)
+    rugby_points_per_half_away = Column(Float, nullable=True)
+
+    # Bandy - Score by half
+    bandy_first_half_home = Column(Integer, nullable=True)
+    bandy_first_half_away = Column(Integer, nullable=True)
+    bandy_second_half_home = Column(Integer, nullable=True)
+    bandy_second_half_away = Column(Integer, nullable=True)
+
+    # Bandy - Totals
+    bandy_total_goals_home = Column(Integer, nullable=True)
+    bandy_total_goals_away = Column(Integer, nullable=True)
+
+    # Bandy - Derived metrics
+    bandy_first_half_margin = Column(Integer, nullable=True)
+    bandy_second_half_margin = Column(Integer, nullable=True)
+    bandy_comeback = Column(Boolean, nullable=True)           # Team losing at HT won FT
+    bandy_goals_per_half_home = Column(Float, nullable=True)
+    bandy_goals_per_half_away = Column(Float, nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
