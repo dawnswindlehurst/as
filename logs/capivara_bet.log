@@ -1,0 +1,2 @@
+2026-02-22 12:07:04 | INFO     | database.db:<module>:48 - Database engine created with default settings
+2026-02-22 12:07:04 | INFO     | utils.player_registry:load_registry:38 - Player registry cache not found, starting fresh
