@@ -302,7 +302,7 @@ class LoLUnified:
             tournament_data = event.get("tournament") or {}
 
             return LoLMatch(
-                match_id=str(event.get("id", "")),
+                match_id=str(match_data.get("id", "")),
                 team1=team1,
                 team2=team2,
                 league=league_data.get("name", "") if isinstance(league_data, dict) else "",
