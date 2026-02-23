@@ -30,32 +30,44 @@ class PopulateLolJob:
         matches = await self.scraper.get_upcoming_matches()
         log.info(f"Fetched {len(matches)} LoL matches")
 
+        saved = {"upcoming": 0, "tbd": 0, "live": 0, "completed": 0}
+
         for match in matches:
             try:
+                # Salvar times (mesmo TBD, para referência)
                 team1_db = self._save_team(match.team1)
                 team2_db = self._save_team(match.team2)
+
+                # Salvar match
                 match_db = self._save_match(match, team1_db, team2_db)
+                saved[match.status] = saved.get(match.status, 0) + 1
 
-                # Fetch and save individual games if match has details
-                if match.games:
-                    for game in match.games:
-                        self._save_game(match_db.match_id, game)
-                else:
-                    details = await self.scraper.get_match_details(match.match_id)
-                    if details and details.games:
-                        for game in details.games:
+                # Buscar detalhes dos games se completed
+                if match.status == "completed":
+                    if match.games:
+                        for game in match.games:
                             self._save_game(match_db.match_id, game)
+                    else:
+                        details = await self.scraper.get_match_details(match.match_id)
+                        if details and details.games:
+                            for game in details.games:
+                                self._save_game(match_db.match_id, game)
 
                 self.db.commit()
 
-                # Update stats for both teams
-                self._update_team_stats(team1_db, match.league)
-                self._update_team_stats(team2_db, match.league)
-                self.db.commit()
+                # Só atualizar stats para times reais (não TBD) em matches completed
+                if match.status == "completed":
+                    if team1_db.name != "TBD":
+                        self._update_team_stats(team1_db, match.league)
+                    if team2_db.name != "TBD":
+                        self._update_team_stats(team2_db, match.league)
+                    self.db.commit()
 
             except Exception as e:
                 log.error(f"Error processing match {match.match_id}: {e}")
                 self.db.rollback()
+
+        log.info(f"Saved: {saved['upcoming']} upcoming, {saved['tbd']} TBD, {saved['live']} live, {saved['completed']} completed")
 
     def _save_team(self, scraper_team: ScraperTeam) -> LolTeam:
         """Save or update a team in the database.

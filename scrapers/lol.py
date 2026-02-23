@@ -105,14 +105,12 @@ class LoLUnified:
             return None
 
     async def get_upcoming_matches(self) -> List[LoLMatch]:
-        """Fetch upcoming LoL matches.
+        """Fetch upcoming LoL matches (all states for updates).
 
         Returns:
-            List of upcoming matches
+            List of matches
         """
         matches = []
-        skipped = 0
-        total = 0
 
         try:
             data = await self._fetch("/getSchedule")
@@ -122,17 +120,21 @@ class LoLUnified:
 
             schedule = data.get("data", {}).get("schedule", {})
             events = schedule.get("events", [])
-            total = len(events)
 
             for event in events:
-                if event.get("state") in ["unstarted", "inProgress"]:
+                # Pegar todos os estados para poder atualizar
+                if event.get("state") in ["unstarted", "inProgress", "completed"]:
                     match = self._parse_event(event)
                     if match:
                         matches.append(match)
-                    else:
-                        skipped += 1
 
-            log.info(f"LoL API: {len(matches)} valid matches, {skipped} skipped (TBD/incomplete), {total} total events")
+            # Log com breakdown
+            upcoming = sum(1 for m in matches if m.status == "upcoming")
+            tbd = sum(1 for m in matches if m.status == "tbd")
+            live = sum(1 for m in matches if m.status == "live")
+            completed = sum(1 for m in matches if m.status == "completed")
+
+            log.info(f"LoL API: {len(matches)} matches ({upcoming} upcoming, {tbd} TBD, {live} live, {completed} completed)")
 
         except Exception as e:
             log.error(f"Error fetching LoL matches: {e}")
@@ -261,33 +263,31 @@ class LoLUnified:
             teams = match_data.get("teams") or []
 
             if len(teams) < 2:
-                log.debug(f"Skipping event with less than 2 teams: {event.get('id', 'unknown')}")
-                return None
-
-            if teams[0] is None or teams[1] is None:
-                log.debug(f"Skipping event with None teams: {event.get('id', 'unknown')}")
                 return None
 
             team1 = self._parse_team(teams[0])
             team2 = self._parse_team(teams[1])
 
-            if team1.name == "TBD" or team2.name == "TBD":
-                log.debug(f"Skipping TBD match: {event.get('id', 'unknown')}")
-                return None
-
+            # Determinar status baseado no estado E nos times
             state = event.get("state", "")
-            status_map = {
-                "unstarted": "upcoming",
-                "inProgress": "live",
-                "completed": "completed",
-            }
-            status = status_map.get(state, "upcoming")
+
+            # Verificar se algum time é TBD
+            has_tbd = team1.name == "TBD" or team2.name == "TBD"
+
+            if state == "completed":
+                status = "completed"
+            elif state == "inProgress":
+                status = "live"
+            elif has_tbd:
+                status = "tbd"  # Times não definidos ainda
+            else:
+                status = "upcoming"  # Pronto para apostas!
 
             strategy = match_data.get("strategy") or {}
             best_of = strategy.get("count", 1) if isinstance(strategy, dict) else 1
 
-            result1 = teams[0].get("result") or {}
-            result2 = teams[1].get("result") or {}
+            result1 = (teams[0] or {}).get("result") or {}
+            result2 = (teams[1] or {}).get("result") or {}
             score1 = result1.get("gameWins", 0) if isinstance(result1, dict) else 0
             score2 = result2.get("gameWins", 0) if isinstance(result2, dict) else 0
 
