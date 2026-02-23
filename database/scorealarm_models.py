@@ -480,13 +480,21 @@ class OddsHistory(Base):
     __tablename__ = "odds_history"
     
     id = Column(Integer, primary_key=True)
-    match_id = Column(Integer, ForeignKey("scorealarm_matches.id"))
+    match_id = Column(Integer, ForeignKey("scorealarm_matches.id"), nullable=True)
     
-    market_type = Column(String(50))  # "moneyline", "over_under", "handicap"
-    team1_odds = Column(Float)
-    team2_odds = Column(Float)
+    # Link direto com Superbet
+    superbet_event_id = Column(String(100), index=True, nullable=True)
+    
+    market_type = Column(String(50))  # "moneyline", "over_under", "spread", "player_prop"
+    team1_odds = Column(Float, nullable=True)
+    team2_odds = Column(Float, nullable=True)
     draw_odds = Column(Float, nullable=True)
-    line = Column(Float, nullable=True)  # Para over/under, handicap
+    line = Column(Float, nullable=True)  # Para over/under, spread
+    
+    # Campos adicionais para player props
+    player_name = Column(String(100), nullable=True)
+    prop_type = Column(String(50), nullable=True)  # "points", "rebounds", "assists", etc
+    outcome_name = Column(String(200), nullable=True)
     
     bookmaker = Column(String(50), default="superbet")
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
