@@ -265,8 +265,8 @@ class LoLUnified:
             strategy = match_data.get("strategy", {})
             best_of = strategy.get("count", 1)
 
-            score1 = teams[0].get("result", {}).get("gameWins", 0)
-            score2 = teams[1].get("result", {}).get("gameWins", 0)
+            score1 = (teams[0].get("result") or {}).get("gameWins", 0)
+            score2 = (teams[1].get("result") or {}).get("gameWins", 0)
 
             winner = ""
             if status == "completed":
@@ -279,8 +279,8 @@ class LoLUnified:
                 match_id=str(event.get("id", "")),
                 team1=team1,
                 team2=team2,
-                league=event.get("league", {}).get("name", ""),
-                tournament=event.get("tournament", {}).get("name", ""),
+                league=(event.get("league") or {}).get("name", ""),
+                tournament=(event.get("tournament") or {}).get("name", ""),
                 date=event.get("startTime", ""),
                 status=status,
                 best_of=best_of,
@@ -303,11 +303,17 @@ class LoLUnified:
         Returns:
             LoLTeam object
         """
+        if team_data is None:
+            return LoLTeam(name="TBD", code="TBD")
+        
+        # homeLeague só existe em chamadas de getTeams, não em getSchedule
+        home_league = team_data.get("homeLeague") or {}
+        
         return LoLTeam(
             name=team_data.get("name", "TBD"),
             code=team_data.get("code", "TBD"),
-            league=team_data.get("homeLeague", {}).get("name", ""),
-            region=team_data.get("homeLeague", {}).get("region", ""),
+            league=home_league.get("name", "") if isinstance(home_league, dict) else "",
+            region=home_league.get("region", "") if isinstance(home_league, dict) else "",
             logo=team_data.get("image", ""),
         )
 
