@@ -1471,11 +1471,67 @@ class HistoricalPopulateJob:
         ]
 
 
+
+
+# Import LoL job for historical population
+from jobs.populate_lol import PopulateLolJob
+from jobs.populate_dota import PopulateDotaJob
+
+
+
+# ============================================
+# NBA PLAYERS
+# ============================================
+
+def populate_nba_players(with_gamelogs: bool = False):
+    """Populate NBA players data."""
+    from jobs.populate_nba_players import PopulateNBAPlayersJob
+    job = PopulateNBAPlayersJob(fetch_gamelogs=with_gamelogs)
+    job.run()
+
+
 async def main():
     """Entry point."""
+    # 1. Scorealarm sports
     job = HistoricalPopulateJob()
     await job.run()
+
+    # 2. LoL (separate API)
+    log.info("="*60)
+    log.info("🎮 INICIANDO POPULAMENTO HISTÓRICO DE LoL")
+    log.info("="*60)
+    lol_job = PopulateLolJob(fetch_history=True)
+    lol_job.run()
+    log.info("✅ LoL historical population completed")
+
+    # 3. Dota 2 (OpenDota API)
+    log.info("="*60)
+    log.info("🎮 INICIANDO POPULAMENTO HISTÓRICO DE DOTA 2")
+    log.info("="*60)
+    dota_job = PopulateDotaJob(fetch_history=True)
+    dota_job.run()
+    log.info("✅ Dota 2 historical population completed")
+
+    # 4. Valorant (VLR.gg API)
+    log.info("="*60)
+    log.info("🎮 INICIANDO POPULAMENTO DE VALORANT")
+    log.info("="*60)
+    valorant_job = PopulateValorantJob(fetch_rankings=True)
+    valorant_job.run()
+    log.info("✅ Valorant population completed")
+
+    # 5. NBA Players (ESPN API)
+    log.info("="*60)
+    log.info("🏀 INICIANDO POPULAMENTO DE NBA PLAYERS")
+    log.info("="*60)
+    populate_nba_players(with_gamelogs=True)
+    log.info("✅ NBA Players population completed")
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+# Import Valorant job for historical population
+from jobs.populate_valorant import PopulateValorantJob
+
