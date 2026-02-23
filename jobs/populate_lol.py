@@ -11,7 +11,8 @@ from utils.logger import log
 class PopulateLolJob:
     """Populates the database with LoL data from the LoL Esports API."""
 
-    def __init__(self):
+    def __init__(self, fetch_history: bool = False):
+        self.fetch_history = fetch_history
         self.scraper = LoLUnified()
         self.db = get_db_session()
 
@@ -27,7 +28,7 @@ class PopulateLolJob:
 
     async def _run_async(self):
         """Async implementation of the run method."""
-        matches = await self.scraper.get_upcoming_matches()
+        matches = await self.scraper.get_upcoming_matches(fetch_history=self.fetch_history)
         log.info(f"Fetched {len(matches)} LoL matches")
 
         saved = {"upcoming": 0, "tbd": 0, "live": 0, "completed": 0}

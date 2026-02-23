@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 from database.db import get_db_session
-from database.dota_models import DotaTeam, DotaMatch, DotaGame, DotaTeamStats
+from database.dota_models import DotaTeam, DotaMatch
 from scrapers.dota import DotaUnified, DotaMatch as ScraperMatch
 from utils.logger import log
 
@@ -79,7 +79,7 @@ class PopulateDotaJob:
         match_date: Optional[datetime] = None
         if scraper_match.start_time:
             try:
-                match_date = datetime.utcfromtimestamp(scraper_match.start_time).replace(tzinfo=timezone.utc)
+                match_date = datetime.fromtimestamp(scraper_match.start_time, tz=timezone.utc)
             except (ValueError, OSError):
                 pass
 

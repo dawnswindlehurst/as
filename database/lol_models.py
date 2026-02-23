@@ -1,7 +1,8 @@
 """LoL (League of Legends) database models."""
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON
-from database.models import Base
+from sqlalchemy.orm import relationship
+from database.db import Base
 
 
 class LolTeam(Base):
@@ -9,7 +10,7 @@ class LolTeam(Base):
     __tablename__ = "lol_teams"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(200), nullable=False)
+    name = Column(String(200), nullable=False, index=True)
     code = Column(String(20))
     league = Column(String(100))
     region = Column(String(50))
@@ -17,13 +18,17 @@ class LolTeam(Base):
     lol_esports_id = Column(String(100), unique=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+    matches_as_team1 = relationship("LolMatch", foreign_keys="LolMatch.team1_id", back_populates="team1")
+    matches_as_team2 = relationship("LolMatch", foreign_keys="LolMatch.team2_id", back_populates="team2")
+    stats = relationship("LolTeamStats", back_populates="team")
+
 
 class LolMatch(Base):
     """LoL match."""
     __tablename__ = "lol_matches"
 
     id = Column(Integer, primary_key=True)
-    match_id = Column(String(100), unique=True, nullable=False)
+    match_id = Column(String(100), unique=True, nullable=False, index=True)
     team1_id = Column(Integer, ForeignKey("lol_teams.id"), nullable=True)
     team2_id = Column(Integer, ForeignKey("lol_teams.id"), nullable=True)
     team1_name = Column(String(200))
@@ -34,12 +39,16 @@ class LolMatch(Base):
     league = Column(String(200))
     tournament = Column(String(200))
     best_of = Column(Integer, default=1)
-    match_date = Column(DateTime, nullable=True)
+    match_date = Column(DateTime, nullable=True, index=True)
     status = Column(String(20), default="upcoming")  # upcoming, live, completed
     url = Column(String(500))
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
+
+    team1 = relationship("LolTeam", foreign_keys=[team1_id], back_populates="matches_as_team1")
+    team2 = relationship("LolTeam", foreign_keys=[team2_id], back_populates="matches_as_team2")
+    games = relationship("LolGame", back_populates="match", cascade="all, delete-orphan")
 
 
 class LolGame(Base):
@@ -58,6 +67,8 @@ class LolGame(Base):
     blue_bans = Column(JSON)
     red_bans = Column(JSON)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    match = relationship("LolMatch", back_populates="games")
 
 
 class LolTeamStats(Base):
@@ -80,3 +91,5 @@ class LolTeamStats(Base):
     season = Column(String(50))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
+
+    team = relationship("LolTeam", back_populates="stats")

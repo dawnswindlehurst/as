@@ -1,6 +1,5 @@
 """Job to populate Valorant data from VLR.gg."""
 import asyncio
-from datetime import datetime, timezone
 from typing import Optional
 from database.db import get_db_session
 from database.valorant_models import ValorantTeam, ValorantMatch

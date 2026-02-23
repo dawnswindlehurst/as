@@ -109,14 +109,14 @@ class ESPNNBACollector:
         try:
             parts = value.split('-')
             return int(parts[0]), int(parts[1])
-        except:
+        except (ValueError, IndexError, TypeError):
             return 0, 0
     
     def _safe_int(self, value) -> int:
         """Safely convert to int."""
         try:
             return int(float(value))
-        except:
+        except (ValueError, TypeError):
             return 0
     
     def get_all_teams(self) -> List[Dict]:
