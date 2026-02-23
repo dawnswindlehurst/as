@@ -30,6 +30,14 @@ try:
 except ImportError:
     pass  # LoL models are optional
 
+# Import team and player models to ensure they're registered
+try:
+    from database import team_models
+    from database import player_models
+    from database import id_mapping_models
+except ImportError:
+    pass  # Multi-sport models are optional
+
 
 # Create engine with Oracle-specific optimizations
 if ORACLE_DEPLOYMENT and DATABASE_URL.startswith('postgresql'):
