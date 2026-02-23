@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from database.db import get_db_session
 from database.scorealarm_models import (
-    ScorealarmSport, ScorealarmCategory, ScorealarmTournament,
+    ScorealarmSport, ScorealarmTournament,
     ScorealarmSeason, ScorealarmTeam, ScorealarmMatch, ScorealarmScore
 )
 from scrapers.superbet.superbet_client import SuperbetClient
@@ -15,6 +15,10 @@ from scrapers.superbet.scorealarm_client import ScorealarmClient
 from utils.gentle_rate_limiter import GentleRateLimiter
 from utils.checkpoint import CheckpointManager
 from utils.logger import log
+from jobs.populate_lol import PopulateLolJob
+from jobs.populate_dota import PopulateDotaJob
+from jobs.populate_valorant import PopulateValorantJob
+from jobs.populate_nba_players import PopulateNBAPlayersJob
 
 # Constants
 MAX_TEAM_NAME_LENGTH = 50
@@ -29,6 +33,12 @@ WATER_POLO_SPORT_ID = 15
 TABLE_TENNIS_SPORT_ID = 24
 RUGBY_SPORT_ID = 8
 BANDY_SPORT_ID = 7
+
+# Regex para detectar anos antigos em nomes de seasons (1980-2023)
+OLD_YEAR_NAME_PATTERN = re.compile(r'\b(19[89]\d|20[01]\d|202[0-3])\b')
+
+# Arquivo para persistir seasons excluídas
+EXCLUDED_SEASONS_FILE = Path("data/excluded_seasons.json")
 
 # Superbet sport ids to keep in historical population (user-curated allowlist)
 ALLOWED_POPULATE_SUPERBET_SPORT_IDS = {
@@ -1471,21 +1481,12 @@ class HistoricalPopulateJob:
         ]
 
 
-
-
-# Import LoL job for historical population
-from jobs.populate_lol import PopulateLolJob
-from jobs.populate_dota import PopulateDotaJob
-
-
-
 # ============================================
 # NBA PLAYERS
 # ============================================
 
 def populate_nba_players(with_gamelogs: bool = False):
     """Populate NBA players data."""
-    from jobs.populate_nba_players import PopulateNBAPlayersJob
     job = PopulateNBAPlayersJob(fetch_gamelogs=with_gamelogs)
     job.run()
 
@@ -1530,8 +1531,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
-# Import Valorant job for historical population
-from jobs.populate_valorant import PopulateValorantJob
 
