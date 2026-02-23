@@ -41,6 +41,8 @@ OLD_YEAR_NAME_PATTERN = re.compile(r'\b(19[89]\d|20[01]\d|202[0-3])\b')
 EXCLUDED_SEASONS_FILE = Path("data/excluded_seasons.json")
 
 # Superbet sport ids to keep in historical population (user-curated allowlist)
+# NOTE: eSports (LoL, Dota, Valorant, CS2, R6) are handled by dedicated scrapers
+# and are called separately in main() function
 ALLOWED_POPULATE_SUPERBET_SPORT_IDS = {
     1,    # Vôlei
     2,    # Tênis
@@ -59,11 +61,6 @@ ALLOWED_POPULATE_SUPERBET_SPORT_IDS = {
     19,   # Futebol australiano
     20,   # Beisebol
     24,   # Tênis de Mesa
-    39,   # League of Legends
-    54,   # Dota 2
-    55,   # Counter-Strike 2
-    80,   # Rainbow Six
-    153,  # Valorant
 }
 
 
