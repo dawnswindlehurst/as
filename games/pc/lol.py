@@ -141,6 +141,14 @@ class LoL(GameBase):
             'best_of': match.best_of,
             'url': match.url,
         }
+
+    def close(self):
+        """Fecha a sessão do scraper."""
+        import asyncio
+        try:
+            asyncio.run(self.lol_api.close())
+        except Exception:
+            pass
     
     def _game_to_dict(self, game) -> Dict:
         """Convert LoLGameResult object to dictionary.
@@ -162,3 +170,11 @@ class LoL(GameBase):
             'blue_bans': game.blue_bans,
             'red_bans': game.red_bans,
         }
+
+    def close(self):
+        """Fecha a sessão do scraper."""
+        import asyncio
+        try:
+            asyncio.run(self.lol_api.close())
+        except Exception:
+            pass
