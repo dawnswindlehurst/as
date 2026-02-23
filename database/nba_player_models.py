@@ -1,6 +1,6 @@
 """Database models for NBA player data."""
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Boolean, JSON
+from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from database.db import Base
 
@@ -34,6 +34,7 @@ class NBAPlayerGameLog(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     player_id = Column(Integer, ForeignKey("nba_players.id"), nullable=False, index=True)
+    game_id = Column(String(50), nullable=True, index=True)
     game_date = Column(DateTime, nullable=True, index=True)
     opponent = Column(String(50), nullable=True)
     home_away = Column(String(10), nullable=True)  # 'home' or 'away'

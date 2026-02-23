@@ -1,8 +1,7 @@
 """Scraper for Valorant data from VLR.gg API."""
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Optional, Dict
-from datetime import datetime
 import aiohttp
 from utils.logger import log
 

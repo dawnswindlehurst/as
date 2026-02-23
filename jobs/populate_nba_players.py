@@ -1,6 +1,5 @@
 """Job to populate ALL NBA player data from ESPN."""
 import time
-from datetime import datetime, timezone
 from database.db import get_db_session
 from database.nba_player_models import NBAPlayer, NBAPlayerGameLog, NBAPlayerSeasonStats
 from scrapers.espn_nba import ESPNNBACollector

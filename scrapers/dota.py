@@ -2,6 +2,7 @@
 import aiohttp
 import asyncio
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from utils.logger import log
 
@@ -136,8 +137,7 @@ class DotaUnified:
                 if fetch_history and data:
                     oldest_time = min(m.get("start_time", 0) for m in data if m.get("start_time"))
                     if oldest_time:
-                        from datetime import datetime
-                        oldest_date = datetime.utcfromtimestamp(oldest_time)
+                        oldest_date = datetime.fromtimestamp(oldest_time, tz=timezone.utc)
                         if oldest_date.year < 2024:
                             log.info(f"Dota API: Reached 2024, stopping at page {page}")
                             break

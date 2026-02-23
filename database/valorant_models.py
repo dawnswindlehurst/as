@@ -1,6 +1,6 @@
 """Database models for Valorant esports data."""
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Text, BigInteger
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, BigInteger
 from sqlalchemy.orm import relationship
 from database.db import Base
 
