@@ -1,4 +1,13 @@
-"""Database models for NBA player data."""
+"""
+DEPRECATED: Use database/player_models.py instead.
+
+These models are kept for backward compatibility but will be removed in a future version.
+Migration guide:
+  - NBAPlayer → Player (with sport_id=4)
+  - NBAPlayerGameLog → PlayerGameLog (with sport_id=4)
+  - NBAPlayerSeasonStats → PlayerSeasonStats (with sport_id=4)
+"""
+
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Boolean
 from sqlalchemy.orm import relationship

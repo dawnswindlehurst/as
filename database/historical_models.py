@@ -15,13 +15,8 @@ except ImportError:
 # ============================================================================
 # NBA MODELS - DEPRECATED
 # ============================================================================
-# NOTA: Estes models estão DEPRECATED para NBA.
-# Use as seguintes tabelas ao invés:
-#   - ScorealarmMatch (scorealarm_matches) → resultados e stats de TIME
-#   - OddsHistory (odds_history) → odds da Superbet
-#   - NBAPlayer/NBAPlayerGameLog (nba_players, nba_player_game_logs) → stats de JOGADOR (ESPN)
-#
-# Estes models serão removidos em uma versão futura.
+# Use database/team_models.py and database/player_models.py instead.
+# These models will be removed in a future version.
 # ============================================================================
 
 class NBAGame(Base):
@@ -256,7 +251,10 @@ class NBAPlayerPropsAnalysis(Base):
 
 
 # ============================================================================
-# SOCCER MODELS
+# SOCCER MODELS - DEPRECATED
+# ============================================================================
+# Use database/team_models.py and database/player_models.py instead.
+# These models will be removed in a future version.
 # ============================================================================
 
 class SoccerMatch(Base):
