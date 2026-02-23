@@ -24,6 +24,12 @@ try:
 except ImportError:
     pass  # Paper trading models are optional
 
+# Import LoL models to ensure they're registered
+try:
+    from database import lol_models
+except ImportError:
+    pass  # LoL models are optional
+
 
 # Create engine with Oracle-specific optimizations
 if ORACLE_DEPLOYMENT and DATABASE_URL.startswith('postgresql'):
