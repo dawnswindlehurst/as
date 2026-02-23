@@ -19,6 +19,20 @@ class SuperbetClient:
     
     BASE_URL = "https://production-superbet-offer-br.freetls.fastly.net/v2/pt-BR"
     
+    
+    # Tournament ID to name mapping (known tournaments)
+    TOURNAMENT_NAMES = {
+        164: 'NBA',
+        36: 'NCAA',
+        2175: 'NCAA (F)',
+        84290: 'Unrivaled (F)',
+        19114: 'EuroLeague',
+        2383: 'EuroCup',
+        6632: 'Liga Argentina',
+        27691: 'Liga Argentina 2',
+        27560: 'Turkey League',
+    }
+
     SPORT_IDS = {
         'cs2': 55,          # Counter-Strike 2
         'dota2': 54,        # Dota 2
@@ -66,8 +80,13 @@ class SuperbetClient:
         
         url = f"{self.BASE_URL}/{endpoint}"
         
+        # Build URL manually to avoid encoding + as %2B
+        if params:
+            query = "&".join(f"{k}={v}" for k, v in params.items())
+            url = f"{url}?{query}"
+        
         try:
-            async with self.session.get(url, params=params) as response:
+            async with self.session.get(url) as response:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientError as e:
@@ -413,12 +432,12 @@ class SuperbetClient:
                 
                 # Parse event
                 event = SuperbetEvent(
-                    event_id=str(item.get('id')),
+                    event_id=str(item.get('eventId') or item.get('id') or ''),
                     event_name=item.get('name', ''),
                     sport_id=item.get('sportId'),
                     sport_name=item.get('sportName', ''),
                     tournament_id=str(item.get('tournamentId')) if item.get('tournamentId') else None,
-                    tournament_name=item.get('tournamentName'),
+                    tournament_name=item.get('tournamentName') or self.TOURNAMENT_NAMES.get(item.get('tournamentId'), ''),
                     start_time=datetime.fromisoformat(item.get('utcDate', item.get('startTime', '')).replace('Z', '+00:00')),
                     team1=team1,
                     team2=team2,

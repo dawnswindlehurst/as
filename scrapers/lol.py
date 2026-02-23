@@ -104,29 +104,62 @@ class LoLUnified:
             log.error(f"LoL API fetch error: {e}")
             return None
 
-    async def get_upcoming_matches(self) -> List[LoLMatch]:
-        """Fetch upcoming LoL matches (all states for updates).
+    async def get_upcoming_matches(self, fetch_history: bool = False) -> List[LoLMatch]:
+        """Fetch LoL matches (all states for updates).
+
+        Args:
+            fetch_history: If True, fetch all pages until 2024 (for initial DB population)
 
         Returns:
             List of matches
         """
         matches = []
+        page_token = None
+        page = 0
+        max_pages = 200 if fetch_history else 1  # ~200 páginas = ~2 anos
 
         try:
-            data = await self._fetch("/getSchedule")
+            while page < max_pages:
+                params = {}
+                if page_token:
+                    params["pageToken"] = page_token
 
-            if not data or "data" not in data:
-                return matches
+                data = await self._fetch("/getSchedule", params)
 
-            schedule = data.get("data", {}).get("schedule", {})
-            events = schedule.get("events", [])
+                if not data or "data" not in data:
+                    break
 
-            for event in events:
-                # Pegar todos os estados para poder atualizar
-                if event.get("state") in ["unstarted", "inProgress", "completed"]:
-                    match = self._parse_event(event)
-                    if match:
-                        matches.append(match)
+                schedule = data.get("data", {}).get("schedule", {})
+                events = schedule.get("events", [])
+
+                if not events:
+                    break
+
+                # Verificar data mais antiga da página
+                first_date = events[0].get("startTime", "")[:10] if events else ""
+                
+                for event in events:
+                    if event.get("state") in ["unstarted", "inProgress", "completed"]:
+                        match = self._parse_event(event)
+                        if match:
+                            matches.append(match)
+
+                # Se fetch_history, continuar até 2024
+                if fetch_history:
+                    if first_date and first_date < "2024-01-01":
+                        log.info(f"LoL API: Reached 2024, stopping at page {page}")
+                        break
+                    
+                    page_token = schedule.get("pages", {}).get("older")
+                    if not page_token:
+                        log.info(f"LoL API: No more pages at page {page}")
+                        break
+                    
+                    page += 1
+                    if page % 10 == 0:
+                        log.info(f"LoL API: Fetching page {page}, date range: {first_date}")
+                else:
+                    break  # Só 1 página para updates normais
 
             # Log com breakdown
             upcoming = sum(1 for m in matches if m.status == "upcoming")
@@ -140,6 +173,7 @@ class LoLUnified:
             log.error(f"Error fetching LoL matches: {e}")
 
         return matches
+
 
     async def get_match_details(self, match_id: str) -> Optional[LoLMatch]:
         """Get detailed match information.
