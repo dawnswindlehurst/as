@@ -6,29 +6,11 @@ from config.settings import DATABASE_URL, ORACLE_DEPLOYMENT
 from database.models import Base
 from utils.logger import log
 
-# Import historical models to ensure they're registered
-try:
-    from database import historical_models
-except ImportError:
-    pass  # Historical models are optional
-
-# Import scorealarm models to ensure they're registered
-try:
-    from database import scorealarm_models
-except ImportError:
-    pass  # Scorealarm models are optional
-
 # Import paper trading models to ensure they're registered
 try:
     from database import paper_trading_models
 except ImportError:
     pass  # Paper trading models are optional
-
-# Import LoL models to ensure they're registered
-try:
-    from database import lol_models
-except ImportError:
-    pass  # LoL models are optional
 
 # Import team and player models to ensure they're registered
 try:
