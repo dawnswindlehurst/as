@@ -111,6 +111,8 @@ class LoLUnified:
             List of upcoming matches
         """
         matches = []
+        skipped = 0
+        total = 0
 
         try:
             data = await self._fetch("/getSchedule")
@@ -120,14 +122,17 @@ class LoLUnified:
 
             schedule = data.get("data", {}).get("schedule", {})
             events = schedule.get("events", [])
+            total = len(events)
 
             for event in events:
                 if event.get("state") in ["unstarted", "inProgress"]:
                     match = self._parse_event(event)
                     if match:
                         matches.append(match)
+                    else:
+                        skipped += 1
 
-            log.info(f"Fetched {len(matches)} upcoming LoL matches")
+            log.info(f"LoL API: {len(matches)} valid matches, {skipped} skipped (TBD/incomplete), {total} total events")
 
         except Exception as e:
             log.error(f"Error fetching LoL matches: {e}")
@@ -245,14 +250,30 @@ class LoLUnified:
             LoLMatch object or None
         """
         try:
-            match_data = event.get("match", {})
-            teams = match_data.get("teams", [])
+            if not event or not isinstance(event, dict):
+                return None
+
+            match_data = event.get("match")
+            if not match_data or not isinstance(match_data, dict):
+                log.debug(f"Skipping event without match data: {event.get('id', 'unknown')}")
+                return None
+
+            teams = match_data.get("teams") or []
 
             if len(teams) < 2:
+                log.debug(f"Skipping event with less than 2 teams: {event.get('id', 'unknown')}")
+                return None
+
+            if teams[0] is None or teams[1] is None:
+                log.debug(f"Skipping event with None teams: {event.get('id', 'unknown')}")
                 return None
 
             team1 = self._parse_team(teams[0])
             team2 = self._parse_team(teams[1])
+
+            if team1.name == "TBD" or team2.name == "TBD":
+                log.debug(f"Skipping TBD match: {event.get('id', 'unknown')}")
+                return None
 
             state = event.get("state", "")
             status_map = {
@@ -262,11 +283,13 @@ class LoLUnified:
             }
             status = status_map.get(state, "upcoming")
 
-            strategy = match_data.get("strategy", {})
-            best_of = strategy.get("count", 1)
+            strategy = match_data.get("strategy") or {}
+            best_of = strategy.get("count", 1) if isinstance(strategy, dict) else 1
 
-            score1 = (teams[0].get("result") or {}).get("gameWins", 0)
-            score2 = (teams[1].get("result") or {}).get("gameWins", 0)
+            result1 = teams[0].get("result") or {}
+            result2 = teams[1].get("result") or {}
+            score1 = result1.get("gameWins", 0) if isinstance(result1, dict) else 0
+            score2 = result2.get("gameWins", 0) if isinstance(result2, dict) else 0
 
             winner = ""
             if status == "completed":
@@ -275,12 +298,15 @@ class LoLUnified:
                 elif score2 > score1:
                     winner = team2.name
 
+            league_data = event.get("league") or {}
+            tournament_data = event.get("tournament") or {}
+
             return LoLMatch(
                 match_id=str(event.get("id", "")),
                 team1=team1,
                 team2=team2,
-                league=(event.get("league") or {}).get("name", ""),
-                tournament=(event.get("tournament") or {}).get("name", ""),
+                league=league_data.get("name", "") if isinstance(league_data, dict) else "",
+                tournament=tournament_data.get("name", "") if isinstance(tournament_data, dict) else "",
                 date=event.get("startTime", ""),
                 status=status,
                 best_of=best_of,
@@ -291,7 +317,7 @@ class LoLUnified:
             )
 
         except Exception as e:
-            log.error(f"Error parsing event: {e}")
+            log.error(f"Error parsing event {event.get('id', 'unknown') if isinstance(event, dict) else 'invalid'}: {e}")
             return None
 
     def _parse_team(self, team_data: Dict) -> LoLTeam:
@@ -303,17 +329,25 @@ class LoLUnified:
         Returns:
             LoLTeam object
         """
-        if team_data is None:
+        if team_data is None or not isinstance(team_data, dict):
             return LoLTeam(name="TBD", code="TBD")
-        
+
+        name = team_data.get("name")
+        code = team_data.get("code")
+
+        if not name or name.strip() == "":
+            return LoLTeam(name="TBD", code="TBD")
+
         # homeLeague só existe em chamadas de getTeams, não em getSchedule
-        home_league = team_data.get("homeLeague") or {}
-        
+        home_league = team_data.get("homeLeague")
+        if home_league is None or not isinstance(home_league, dict):
+            home_league = {}
+
         return LoLTeam(
-            name=team_data.get("name", "TBD"),
-            code=team_data.get("code", "TBD"),
-            league=home_league.get("name", "") if isinstance(home_league, dict) else "",
-            region=home_league.get("region", "") if isinstance(home_league, dict) else "",
+            name=name,
+            code=code or "TBD",
+            league=home_league.get("name", ""),
+            region=home_league.get("region", ""),
             logo=team_data.get("image", ""),
         )
 
@@ -326,20 +360,33 @@ class LoLUnified:
         Returns:
             List of LoLGameResult objects
         """
+        if not games_data or not isinstance(games_data, list):
+            return []
+
         games = []
 
         for i, game in enumerate(games_data, 1):
-            teams = game.get("teams", [])
+            if not game or not isinstance(game, dict):
+                continue
 
-            blue_team = teams[0].get("name", "") if len(teams) > 0 else ""
-            red_team = teams[1].get("name", "") if len(teams) > 1 else ""
+            teams = game.get("teams") or []
+
+            blue_team = ""
+            red_team = ""
+
+            if len(teams) > 0 and teams[0] and isinstance(teams[0], dict):
+                blue_team = teams[0].get("name", "")
+            if len(teams) > 1 and teams[1] and isinstance(teams[1], dict):
+                red_team = teams[1].get("name", "")
 
             winner = ""
             if game.get("state") == "completed":
                 for team in teams:
-                    if team.get("result", {}).get("outcome") == "win":
-                        winner = team.get("name", "")
-                        break
+                    if team and isinstance(team, dict):
+                        result = team.get("result")
+                        if result and isinstance(result, dict) and result.get("outcome") == "win":
+                            winner = team.get("name", "")
+                            break
 
             game_result = LoLGameResult(
                 game_number=game.get("number", i),
